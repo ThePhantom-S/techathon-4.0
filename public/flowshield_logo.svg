@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <defs>
+    <linearGradient id="fBgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4F46E5" />
+      <stop offset="100%" stop-color="#2563EB" />
+    </linearGradient>
+    <linearGradient id="fAccentGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="100%" stop-color="#818CF8" />
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded Icon Base -->
+  <rect x="6" y="6" width="88" height="88" rx="24" fill="url(#fBgGrad)" />
+
+  <!-- Bold Geometric Letter 'F' -->
+  <!-- Vertical Spine -->
+  <rect x="28" y="24" width="14" height="52" rx="4" fill="#FFFFFF" />
+
+  <!-- Top Cross Bar -->
+  <path d="M42 24 H72 C74.2 24 76 25.8 76 28 V32 C76 34.2 74.2 36 72 36 H42 V24 Z" fill="#FFFFFF" />
+
+  <!-- Middle Cross Bar with Financial Trend Accent -->
+  <path d="M42 46 H64 C66.2 46 68 47.8 68 50 V54 C68 56.2 66.2 58 64 58 H42 V46 Z" fill="url(#fAccentGrad)" />
+
+  <!-- Upward Trend Accent Dot -->
+  <circle cx="72" cy="30" r="3" fill="#38BDF8" />
+</svg>

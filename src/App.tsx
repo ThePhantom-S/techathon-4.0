@@ -1,0 +1,464 @@
+import React, { useState, useMemo, useEffect } from 'react';
+import { Header } from './components/Header';
+import { Sidebar } from './components/Sidebar';
+import { FinancialDecisionTwin } from './components/FinancialDecisionTwin';
+import { LiquidityChart } from './components/LiquidityChart';
+import { MonteCarloChart } from './components/MonteCarloChart';
+import { DataManagementView } from './components/DataManagementView';
+import { BusinessConnectorModal } from './components/BusinessConnectorModal';
+import { WhatChangedView } from './components/WhatChangedView';
+import { DecisionMatrixTable } from './components/DecisionMatrixTable';
+import { DashboardAnalytics } from './components/DashboardAnalytics';
+import { RecommendationEngine } from './components/RecommendationEngine';
+import { ChatbotModal } from './components/ChatbotModal';
+import { FinancialTimeMachine } from './components/FinancialTimeMachine';
+import { WhatIfSimulator } from './components/WhatIfSimulator';
+import { SettingsView } from './components/SettingsView';
+import { LoginView } from './components/LoginView';
+import { LiquidityAlertAndBriefingView } from './components/LiquidityNotifications';
+import { useTheme } from './context/ThemeContext';
+
+import {
+  demoInventory,
+  demoSuppliers,
+  demoSales,
+  demoConfig,
+  demoTransactions,
+  demoPayables,
+  demoExpenses,
+} from './engine/sampleData';
+import { Config } from './types';
+import { runSimulationEngine, formatINR } from './engine/calculator';
+import { parseCSV } from './engine/csvParser';
+import { generatePDFReport } from './engine/pdfGenerator';
+import { Transaction, Payable, Expense } from './types';
+import { Zap, Bot } from 'lucide-react';
+
+export default function App() {
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
+
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return localStorage.getItem('flowshield_authenticated') === 'true';
+  });
+
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeSubTab, setActiveSubTab] = useState('Overview');
+  const [supplierDelayDays, setSupplierDelayDays] = useState(demoConfig.supplier_delay_days);
+  const [activeCounterfactual, setActiveCounterfactual] = useState<string | null>(null);
+  const [isConnectorOpen, setIsConnectorOpen] = useState(false);
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
+  const [cashFloorInput, setCashFloorInput] = useState(demoConfig.cash_floor);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  // Live uploaded / connected data states (pre-populated with demo dataset for instant 0ms load)
+  const [liveTransactions, setLiveTransactions] = useState<Transaction[] | null>(demoTransactions);
+  const [livePayables, setLivePayables] = useState<Payable[] | null>(demoPayables);
+  const [liveExpenses, setLiveExpenses] = useState<Expense[] | null>(demoExpenses);
+  const [liveCash, setLiveCash] = useState<number | null>(demoConfig.current_cash);
+
+  // Handle OAuth callback redirects (Zoho/QuickBooks)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const connectorResult = params.get('connector');
+    const provider = params.get('provider');
+    const errorMsg = params.get('message');
+
+    if (connectorResult) {
+      // Clean up URL immediately
+      window.history.replaceState({}, '', window.location.pathname);
+
+      if (connectorResult === 'success' && provider) {
+        // OAuth flow succeeded — open the connector modal to show success state
+        setIsConnectorOpen(true);
+        // Reload financial data from DB
+        fetch('/api/financials')
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.config) {
+              setCashFloorInput(data.config.cash_floor);
+              setSupplierDelayDays(data.config.supplier_delay_days);
+              setLiveCash(data.config.current_cash);
+            }
+            if (data.transactions && data.transactions.length) setLiveTransactions(data.transactions);
+            if (data.payables && data.payables.length) setLivePayables(data.payables);
+            if (data.expenses && data.expenses.length) setLiveExpenses(data.expenses);
+          })
+          .catch(() => {});
+      } else if (connectorResult === 'error') {
+        // OAuth flow failed — show connector with error context
+        console.error(`Connector error (${provider}):`, errorMsg);
+        setIsConnectorOpen(true);
+      }
+    }
+  }, []);
+
+  // Load data from DB on startup (SR-01)
+  useEffect(() => {
+    // Skip initial fetch if we already handled an OAuth callback above
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('connector')) return;
+
+    fetch('/api/financials')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.config) {
+          setCashFloorInput(data.config.cash_floor);
+          setSupplierDelayDays(data.config.supplier_delay_days);
+          setLiveCash(data.config.current_cash);
+        }
+        if (data.transactions && data.transactions.length) setLiveTransactions(data.transactions);
+        if (data.payables && data.payables.length) setLivePayables(data.payables);
+        if (data.expenses && data.expenses.length) setLiveExpenses(data.expenses);
+      })
+      .catch((err) => console.error('Failed to load database financials:', err))
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  // Derive current data from DB-sourced live state (empty arrays until DB loads)
+  const currentTransactions = liveTransactions || [];
+  const currentPayables = livePayables || [];
+  const currentExpenses = liveExpenses || [];
+  const currentCashVal = liveCash !== null ? liveCash : 0;
+
+  // Automatically save settings to database when changed (SR-02)
+  useEffect(() => {
+    if (liveCash === null) return; // wait until initial DB sync is complete
+    const updateSettingsInDb = async () => {
+      try {
+        await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ currentCash: currentCashVal, cashFloor: cashFloorInput, delayDays: supplierDelayDays }),
+        });
+      } catch (e) {
+        console.error('Failed to save settings:', e);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      updateSettingsInDb();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [cashFloorInput, supplierDelayDays, currentCashVal, liveCash]);
+
+  // Smooth scroll to top on tab & subtab navigation
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [activeTab, activeSubTab]);
+
+  // Active overrides based on selected counterfactual card
+  const overrides = useMemo(() => {
+    if (activeCounterfactual === 'cf-1') return { procurementReductionPercent: 20 };
+    if (activeCounterfactual === 'cf-2') return { supplierTermExtensionDays: 15 };
+    if (activeCounterfactual === 'cf-3') return { customerAdvancePercent: 30 };
+    return undefined;
+  }, [activeCounterfactual]);
+
+  // Run calculation engine
+  const config: Config = useMemo(
+    () => ({
+      current_cash: currentCashVal,
+      cash_floor: cashFloorInput,
+      forecast_weights: [0.5, 0.3, 0.2],
+      supplier_delay_days: supplierDelayDays,
+    }),
+    [currentCashVal, supplierDelayDays, cashFloorInput]
+  );
+
+  const simulationResult = useMemo(
+    () =>
+      runSimulationEngine(
+        config,
+        currentTransactions,
+        currentPayables,
+        currentExpenses,
+        demoInventory,
+        demoSuppliers,
+        demoSales,
+        overrides
+      ),
+    [config, currentTransactions, currentPayables, currentExpenses, overrides]
+  );
+
+  // Export report action (PDF)
+  const handleExportReport = () => {
+    generatePDFReport({
+      simulationResult,
+      cashFloor: config.cash_floor,
+      supplierDelayDays,
+      companyName: 'Shakti Electronics',
+      gstin: '33AABCS1234B1Z1',
+    });
+  };
+
+  const handleLogin = (companyName?: string) => {
+    localStorage.setItem('flowshield_authenticated', 'true');
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('flowshield_authenticated');
+    setIsAuthenticated(false);
+  };
+
+  if (!isAuthenticated) {
+    return <LoginView onLogin={handleLogin} />;
+  }
+
+  return (
+    <div className={`font-sans min-h-screen flex flex-col relative transition-colors duration-150 ${
+      isLight ? 'bg-[#FFFFFF] text-[#171717]' : 'bg-[#000000] text-[#EDEDED]'
+    }`}>
+      {/* Main Sidebar Navigation */}
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={(tab) => {
+          if (tab === 'connector') {
+            setIsConnectorOpen(true);
+          } else {
+            setActiveTab(tab);
+          }
+        }}
+        onRunSimulation={() => setActiveTab('simulation')}
+        onOpenConnector={() => setIsConnectorOpen(true)}
+        onOpenChatbot={() => setIsChatbotOpen(true)}
+        isOpen={isMobileSidebarOpen}
+        onClose={() => setIsMobileSidebarOpen(false)}
+      />
+
+      {/* Main Container Right of Sidebar */}
+      <div className="lg:pl-[220px] pl-0 flex-1 flex flex-col relative z-10 min-h-screen w-full overflow-x-hidden">
+        {/* Top Header Bar */}
+        <Header
+          activeTab={activeTab}
+          activeSubTab={activeSubTab}
+          setActiveSubTab={setActiveSubTab}
+          onExportReport={handleExportReport}
+          onRefresh={() => setSupplierDelayDays(20)}
+          onOpenConnector={() => setIsConnectorOpen(true)}
+          onOpenChatbot={() => setIsChatbotOpen(true)}
+          onLogout={handleLogout}
+          onToggleSidebar={() => setIsMobileSidebarOpen((prev) => !prev)}
+        />
+
+        {/* Mobile Sub-tabs Pill Bar (Dashboard) */}
+        {(activeTab === 'dashboard' || !activeTab) && (
+          <div className={`md:hidden px-3 py-2 border-b flex items-center gap-1.5 overflow-x-auto no-scrollbar sticky top-14 z-30 ${
+            isLight ? 'bg-white/95 border-slate-200 shadow-xs' : 'bg-black/95 border-zinc-800'
+          }`}>
+            {['Overview', 'Liquidity Exposure', 'Inflows', 'Outflows', 'Financial Intelligence'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveSubTab(tab)}
+                className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                  activeSubTab === tab
+                    ? 'bg-indigo-600 text-white font-bold shadow-xs'
+                    : isLight
+                      ? 'text-slate-600 bg-slate-100 hover:bg-slate-200'
+                      : 'text-zinc-400 bg-zinc-900 hover:bg-zinc-800'
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* View Content Area */}
+        <main className="flex-1 p-3 sm:p-4 md:p-6 space-y-4 md:space-y-6 pb-20 max-w-[1600px] w-full mx-auto">
+          {/* VIEW 1: DASHBOARD / OVERVIEW */}
+          {activeTab === 'dashboard' && (
+            <DashboardAnalytics
+              simulationResult={simulationResult}
+              cashFloor={config.cash_floor}
+              isLoading={isLoading}
+              activeSubTab={activeSubTab}
+              supplierDelayDays={supplierDelayDays}
+            />
+          )}
+
+          {/* VIEW: FINANCIAL TIME MACHINE */}
+          {activeTab === 'time-machine' && (
+            <FinancialTimeMachine
+              simulationResult={simulationResult}
+              cashFloor={config.cash_floor}
+            />
+          )}
+
+          {/* WHAT-IF SIMULATOR */}
+          {activeTab === 'what-if' && (
+            <WhatIfSimulator
+              config={config}
+              transactions={currentTransactions}
+              payables={currentPayables}
+              expenses={currentExpenses}
+              currentSimulationResult={simulationResult}
+              onVisualizeIn3D={(scenarioId, paramValue, whatIfResult) => {
+                // Set the supplier delay to the what-if value and switch to Digital Twin
+                if (scenarioId === 'supplier-delay') {
+                  setSupplierDelayDays(paramValue);
+                }
+                setActiveTab('simulation');
+              }}
+            />
+          )}
+
+          {/* VIEW 2: MONTE CARLO DISTRIBUTION */}
+          {activeTab === 'driver-analysis' && (
+            <MonteCarloChart
+              simulationResult={simulationResult}
+              cashFloor={config.cash_floor}
+            />
+          )}
+
+          {/* VIEW: LIQUIDITY ALERT & BRIEFING (WHATSAPP) */}
+          {activeTab === 'liquidity-alerts' && (
+            <LiquidityAlertAndBriefingView />
+          )}
+
+          {/* VIEW 3: BUSINESS MINIATURE MODEL & DECISION SIMULATOR */}
+          {activeTab === 'simulation' && (
+            <div className="space-y-6">
+              <div className={`border-b pb-3 flex justify-between items-center ${isLight ? 'border-[#EAEAEA]' : 'border-[#222222]'}`}>
+                <div>
+                  <h1 className={`text-2xl font-semibold tracking-tight ${isLight ? 'text-[#171717]' : 'text-[#EDEDED]'}`}>
+                    Business Miniature Model &amp; Decision Simulator
+                  </h1>
+                  <p className={`text-xs mt-1 ${isLight ? 'text-[#666666]' : 'text-[#A1A1AA]'}`}>
+                    Interactive 3D supply chain map, delivery delay simulation, and scenario strategy testing.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSupplierDelayDays(20)}
+                  className={`px-3 py-1.5 rounded border text-xs font-mono font-medium transition-colors cursor-pointer ${
+                    isLight
+                      ? 'bg-[#FFFFFF] border-[#EAEAEA] text-[#171717] hover:bg-[#FAFAFA]'
+                      : 'bg-[#111111] border-[#222222] text-[#EDEDED] hover:bg-[#1A1A1A]'
+                  }`}
+                >
+                  Reset Defaults
+                </button>
+              </div>
+
+              <FinancialDecisionTwin
+                currentCash={simulationResult.currentCash}
+                minCash={simulationResult.minProjectedCash}
+                cashFloor={config.cash_floor}
+                hasBreach={simulationResult.hasBreach}
+                earliestBreachDate={simulationResult.earliestBreachDate}
+                supplierDelayDays={supplierDelayDays}
+                onSupplierDelayChange={setSupplierDelayDays}
+                counterfactuals={simulationResult.counterfactuals}
+                activeCounterfactual={activeCounterfactual}
+                onSelectCounterfactual={setActiveCounterfactual}
+                onOpenDriverAnalysis={() => setActiveTab('driver-analysis')}
+
+                driverAnalysis={simulationResult.driverAnalysis}
+                show3D={true}
+              />
+            </div>
+          )}
+
+          {/* VIEW 4: DATA MANAGEMENT */}
+          {activeTab === 'data-management' && (
+            <DataManagementView
+              isLoading={isLoading}
+              transactions={currentTransactions}
+              payables={currentPayables}
+              inventory={demoInventory}
+              suppliers={demoSuppliers}
+              expenses={currentExpenses}
+              onUploadCsvData={async (csvText) => {
+                const parsed = parseCSV(csvText);
+                if (parsed.transactions.length || parsed.payables.length || parsed.currentCash !== null) {
+                  try {
+                    await fetch('/api/import', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        currentCash: parsed.currentCash !== null ? parsed.currentCash : currentCashVal,
+                        transactions: parsed.transactions,
+                        payables: parsed.payables,
+                        expenses: parsed.expenses,
+                      }),
+                    });
+                  } catch (e) {
+                    console.error('Failed to import CSV:', e);
+                  }
+                }
+                if (parsed.transactions.length) setLiveTransactions(parsed.transactions);
+                if (parsed.payables.length) setLivePayables(parsed.payables);
+                if (parsed.expenses.length) setLiveExpenses(parsed.expenses);
+                if (parsed.currentCash !== null) setLiveCash(parsed.currentCash);
+              }}
+              onResetDemoData={async () => {
+                try {
+                  await fetch('/api/reset', { method: 'POST' });
+                } catch (e) {
+                  console.error('Failed to reset dataset:', e);
+                }
+                setLiveTransactions(null);
+                setLivePayables(null);
+                setLiveExpenses(null);
+                setLiveCash(null);
+                setSupplierDelayDays(20);
+                setCashFloorInput(500000);
+              }}
+            />
+          )}
+
+          {/* VIEW 6: SETTINGS & AI API KEYS */}
+          {activeTab === 'settings' && (
+            <SettingsView
+              cashFloor={config.cash_floor}
+              onUpdateCashFloor={(floor) => setCashFloorInput(floor)}
+              supplierDelayDays={supplierDelayDays}
+              onUpdateSupplierDelay={(days) => setSupplierDelayDays(days)}
+            />
+          )}
+        </main>
+      </div>
+
+      {/* Consent Business Connector Modal */}
+      <BusinessConnectorModal
+        isOpen={isConnectorOpen}
+        onClose={() => setIsConnectorOpen(false)}
+        onConnected={() => {
+          setIsConnectorOpen(false);
+        }}
+        isConnected={true}
+        onDataImported={(data) => {
+          setLiveTransactions(data.transactions.length ? data.transactions : null);
+          setLivePayables(data.payables.length ? data.payables : null);
+          setLiveExpenses(data.expenses.length ? data.expenses : null);
+          setLiveCash(data.currentCash);
+        }}
+      />
+
+      {/* Floating AI Chatbot Button */}
+      <button
+        onClick={() => setIsChatbotOpen(true)}
+        className={`fixed bottom-6 right-6 z-40 flex items-center gap-2.5 px-4 py-3 rounded-full font-mono text-xs font-bold border shadow-xl hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer ${
+          isLight
+            ? 'bg-[#171717] text-white border-slate-700 hover:bg-slate-800'
+            : 'bg-[#EDEDED] text-black border-slate-300 hover:bg-white'
+        }`}
+        title="Open FlowShield Financial Intelligence Assistant"
+      >
+        <Bot className="w-4 h-4" />
+        <span>Financial Intelligence</span>
+      </button>
+
+      {/* Grounded AI Advisor Chatbot Modal */}
+      <ChatbotModal
+        isOpen={isChatbotOpen}
+        onClose={() => setIsChatbotOpen(false)}
+        simulationResult={simulationResult}
+        cashFloor={config.cash_floor}
+        supplierDelayDays={supplierDelayDays}
+      />
+    </div>
+  );
+}

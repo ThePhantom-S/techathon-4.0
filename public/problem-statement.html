@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The SME Cash Flow Gap — FlowShield Problem Statement</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              400: '#818cf8',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-[#07090E] text-slate-100 min-h-screen font-sans selection:bg-indigo-500 selection:text-white antialiased">
+
+  <!-- Background Gradients -->
+  <div class="fixed inset-0 pointer-events-none overflow-hidden z-0">
+    <div class="absolute -top-40 left-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl"></div>
+    <div class="absolute top-60 right-1/4 w-96 h-96 bg-rose-500/10 rounded-full blur-3xl"></div>
+    <div class="absolute bottom-10 left-1/3 w-[600px] h-96 bg-indigo-600/10 rounded-full blur-3xl"></div>
+  </div>
+
+  <!-- Top Navigation Bar -->
+  <header class="relative z-20 border-b border-slate-800/80 bg-[#07090E]/80 backdrop-blur-md sticky top-0 px-6 py-3.5 flex items-center justify-between max-w-7xl mx-auto">
+    <div class="flex items-center gap-3">
+      <img src="/flowshield_logo.svg" alt="FlowShield Logo" class="w-7 h-7 object-contain" />
+      <div>
+        <span class="font-bold text-base tracking-tight text-white">FlowShield</span>
+        <span class="text-[11px] font-mono text-slate-400 ml-2 hidden sm:inline-block">Problem Analysis</span>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <a href="/sme_cash_flow_crisis.png" target="_blank" class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 text-xs font-medium text-slate-300 border border-slate-700/80 transition-all flex items-center gap-1.5">
+        <i data-lucide="image" class="w-3.5 h-3.5 text-indigo-400"></i>
+        <span>Original Infographic</span>
+      </a>
+      <a href="/" class="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white shadow-lg shadow-indigo-500/20 transition-all flex items-center gap-1.5">
+        <span>Launch Platform</span>
+        <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-8 md:py-12 space-y-12">
+
+    <!-- Top Headline -->
+    <div class="text-center space-y-3 max-w-3xl mx-auto">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-medium">
+        <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
+        <span>The Core SME Financial Paradox</span>
+      </div>
+      <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white leading-tight">
+        Why Profitable Businesses Run Out of Cash
+      </h1>
+      <p class="text-slate-400 text-sm sm:text-base leading-relaxed">
+        Sales growth does not equal liquidity. Explore the hidden disconnect between paper revenue and actual in-bank capital.
+      </p>
+    </div>
+
+    <!-- The Split Comparison Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-11 gap-6 items-stretch">
+
+      <!-- LEFT SIDE: SALES ARE GROWING (GREEN / ON PAPER) -->
+      <div class="lg:col-span-5 rounded-2xl border border-emerald-500/30 bg-gradient-to-b from-emerald-950/20 via-slate-900/40 to-slate-950/60 p-6 md:p-8 flex flex-col justify-between relative overflow-hidden shadow-xl shadow-emerald-950/10">
+        <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-400"></div>
+
+        <div class="space-y-6">
+          <!-- Column Header -->
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                <i data-lucide="trending-up" class="w-5 h-5"></i>
+              </div>
+              <h2 class="text-xl md:text-2xl font-bold tracking-tight text-emerald-400 uppercase">
+                Sales Are Growing
+              </h2>
+            </div>
+            <span class="px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-mono font-medium">
+              On Paper
+            </span>
+          </div>
+
+          <!-- Cards Grid -->
+          <div class="space-y-4">
+            <!-- Orders & Revenue Growth Card -->
+            <div class="p-4 rounded-xl bg-slate-900/80 border border-emerald-500/20 space-y-3">
+              <div class="flex items-center justify-between text-xs text-slate-400 font-mono">
+                <span class="flex items-center gap-1.5 text-slate-300 font-semibold">
+                  <i data-lucide="shopping-bag" class="w-4 h-4 text-emerald-400"></i> ORDERS &amp; DEMAND
+                </span>
+                <span class="text-emerald-400 font-bold flex items-center gap-1">
+                  <i data-lucide="arrow-up-right" class="w-3.5 h-3.5"></i> +48% YoY
+                </span>
+              </div>
+              <!-- Mock SVG Trend Chart -->
+              <div class="h-20 w-full flex items-end">
+                <svg viewBox="0 0 300 80" class="w-full h-full overflow-visible">
+                  <defs>
+                    <linearGradient id="greenGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#10b981" stop-opacity="0.4"/>
+                      <stop offset="100%" stop-color="#10b981" stop-opacity="0.0"/>
+                    </linearGradient>
+                  </defs>
+                  <path d="M0,70 Q 50,60 100,45 T 200,30 T 300,10 L 300,80 L 0,80 Z" fill="url(#greenGrad)" />
+                  <path d="M0,70 Q 50,60 100,45 T 200,30 T 300,10" fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round" />
+                  <circle cx="300" cy="10" r="4" fill="#10b981" class="animate-ping" />
+                  <circle cx="300" cy="10" r="4" fill="#34d399" />
+                </svg>
+              </div>
+            </div>
+
+            <!-- Metrics Row -->
+            <div class="grid grid-cols-2 gap-3">
+              <div class="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
+                  <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
+                </div>
+                <div>
+                  <div class="text-[11px] text-slate-400 font-medium">Billed Revenue</div>
+                  <div class="text-sm font-bold text-white font-mono">₹48.5 Lakhs</div>
+                </div>
+              </div>
+              <div class="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
+                  <i data-lucide="users" class="w-4 h-4"></i>
+                </div>
+                <div>
+                  <div class="text-[11px] text-slate-400 font-medium">Customer Rating</div>
+                  <div class="text-xs font-bold text-amber-400 flex items-center gap-0.5">
+                    <i data-lucide="star" class="w-3 h-3 fill-amber-400"></i>
+                    <i data-lucide="star" class="w-3 h-3 fill-amber-400"></i>
+                    <i data-lucide="star" class="w-3 h-3 fill-amber-400"></i>
+                    <i data-lucide="star" class="w-3 h-3 fill-amber-400"></i>
+                    <i data-lucide="star" class="w-3 h-3 fill-amber-400"></i>
+                    <span class="text-slate-300 ml-1 font-mono text-[10px]">5.0</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Invoices Stack -->
+            <div class="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <i data-lucide="layers" class="w-4 h-4 text-emerald-400"></i>
+                <span class="text-xs font-semibold text-slate-200">Customer Invoices Issued</span>
+              </div>
+              <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold text-xs border border-emerald-500/30">
+                MARKED PAID (BOOKED)
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer Tag -->
+        <div class="mt-8 pt-4 border-t border-emerald-500/20 flex items-center justify-between text-xs">
+          <span class="text-slate-400 font-medium">Accounting Status:</span>
+          <span class="text-emerald-400 font-mono font-bold">MONEY EARNED (On Paper)</span>
+        </div>
+      </div>
+
+      <!-- CENTER CONNECTOR: CASH FLOW GAP -->
+      <div class="lg:col-span-1 flex flex-col items-center justify-center py-4 lg:py-0 relative">
+        <div class="h-full w-full flex flex-col items-center justify-center gap-3">
+          <div class="h-8 w-px bg-slate-700 hidden lg:block"></div>
+          <div class="px-3 py-2 rounded-xl bg-slate-900 border border-indigo-500/40 shadow-lg text-center space-y-1">
+            <div class="text-[10px] font-mono uppercase tracking-wider text-indigo-400 font-bold whitespace-nowrap">
+              The Reality Gap
+            </div>
+            <div class="text-xs font-bold text-white whitespace-nowrap">
+              CASH FLOW GAP
+            </div>
+            <div class="flex items-center justify-center gap-1 pt-1 text-slate-400">
+              <i data-lucide="arrow-right" class="w-4 h-4 text-indigo-400"></i>
+            </div>
+          </div>
+          <div class="h-8 w-px bg-slate-700 hidden lg:block"></div>
+        </div>
+      </div>
+
+      <!-- RIGHT SIDE: CASH IS DISAPPEARING (RED / IN BANK) -->
+      <div class="lg:col-span-5 rounded-2xl border border-rose-500/30 bg-gradient-to-b from-rose-950/20 via-slate-900/40 to-slate-950/60 p-6 md:p-8 flex flex-col justify-between relative overflow-hidden shadow-xl shadow-rose-950/10">
+        <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 to-amber-500"></div>
+
+        <div class="space-y-6">
+          <!-- Column Header -->
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400">
+                <i data-lucide="trending-down" class="w-5 h-5"></i>
+              </div>
+              <h2 class="text-xl md:text-2xl font-bold tracking-tight text-rose-400 uppercase">
+                Cash Is Disappearing
+              </h2>
+            </div>
+            <span class="px-2.5 py-1 rounded-md bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-mono font-medium">
+              In Bank
+            </span>
+          </div>
+
+          <!-- Cards Grid -->
+          <div class="space-y-4">
+            <!-- Critical Low Cash Balance Card -->
+            <div class="p-4 rounded-xl bg-rose-950/40 border border-rose-500/30 space-y-3">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-7 h-7 rounded-lg bg-rose-500/20 flex items-center justify-center text-rose-400">
+                    <i data-lucide="wallet" class="w-4 h-4"></i>
+                  </div>
+                  <div>
+                    <div class="text-[10px] font-mono text-slate-400 uppercase tracking-wider">Available Cash Balance</div>
+                    <div class="text-xl font-black text-rose-400 font-mono">₹12,400</div>
+                  </div>
+                </div>
+                <span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 font-mono font-bold text-[11px] border border-rose-500/40">
+                  CRITICAL LOW
+                </span>
+              </div>
+
+              <!-- Downward Trend Line Chart -->
+              <div class="h-16 w-full flex items-end">
+                <svg viewBox="0 0 300 60" class="w-full h-full overflow-visible">
+                  <defs>
+                    <linearGradient id="redGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.3"/>
+                      <stop offset="100%" stop-color="#f43f5e" stop-opacity="0.0"/>
+                    </linearGradient>
+                  </defs>
+                  <path d="M0,10 Q 70,15 140,35 T 300,55 L 300,60 L 0,60 Z" fill="url(#redGrad)" />
+                  <path d="M0,10 Q 70,15 140,35 T 300,55" fill="none" stroke="#f43f5e" stroke-width="3" stroke-linecap="round" />
+                  <circle cx="300" cy="55" r="4" fill="#f43f5e" />
+                </svg>
+              </div>
+            </div>
+
+            <!-- 3 Core Drain Factors -->
+            <div class="grid grid-cols-3 gap-2 text-center">
+              <div class="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 space-y-1">
+                <i data-lucide="clock" class="w-4 h-4 text-amber-400 mx-auto"></i>
+                <div class="text-[10px] font-bold text-slate-200 uppercase leading-tight">Payments Delayed</div>
+                <div class="text-[9px] text-slate-400">45+ Days DSO</div>
+              </div>
+              <div class="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 space-y-1">
+                <i data-lucide="file-text" class="w-4 h-4 text-rose-400 mx-auto"></i>
+                <div class="text-[10px] font-bold text-slate-200 uppercase leading-tight">Expenses Continue</div>
+                <div class="text-[9px] text-slate-400">Fixed Burn Rate</div>
+              </div>
+              <div class="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 space-y-1">
+                <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-400 mx-auto"></i>
+                <div class="text-[10px] font-bold text-slate-200 uppercase leading-tight">Unpredictable Flow</div>
+                <div class="text-[9px] text-slate-400">Zero Visibility</div>
+              </div>
+            </div>
+
+            <!-- Overdue Liabilities Stack -->
+            <div class="space-y-1.5 text-xs font-mono">
+              <div class="flex items-center justify-between p-2 rounded-lg bg-slate-900/80 border border-slate-800">
+                <span class="text-slate-300 font-medium">Facility Rent</span>
+                <span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 text-[10px] font-bold">DUE NOW</span>
+              </div>
+              <div class="flex items-center justify-between p-2 rounded-lg bg-slate-900/80 border border-slate-800">
+                <span class="text-slate-300 font-medium">Employee Salaries</span>
+                <span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 text-[10px] font-bold">DUE NOW</span>
+              </div>
+              <div class="flex items-center justify-between p-2 rounded-lg bg-slate-900/80 border border-slate-800">
+                <span class="text-slate-300 font-medium">Key Supplier Invoices</span>
+                <span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 text-[10px] font-bold">OVERDUE</span>
+              </div>
+              <div class="flex items-center justify-between p-2 rounded-lg bg-slate-900/80 border border-slate-800">
+                <span class="text-slate-300 font-medium">Bank Term Loan EMI</span>
+                <span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 text-[10px] font-bold">PENALTY RISK</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer Tag -->
+        <div class="mt-8 pt-4 border-t border-rose-500/20 flex items-center justify-between text-xs">
+          <span class="text-slate-400 font-medium">Liquidity Reality:</span>
+          <span class="text-rose-400 font-mono font-bold">MONEY AVAILABLE (In Bank)</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- BOTTOM HERO STATISTIC BANNER -->
+    <div class="rounded-3xl border border-indigo-500/30 bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 p-8 md:p-12 shadow-2xl relative overflow-hidden">
+      <!-- Glow Accent -->
+      <div class="absolute -right-20 -bottom-20 w-80 h-80 bg-indigo-500/15 rounded-full blur-3xl"></div>
+
+      <div class="flex flex-col md:flex-row items-center justify-between gap-8 relative z-10">
+        <!-- Giant Stat -->
+        <div class="flex items-center gap-6">
+          <div class="text-6xl sm:text-7xl md:text-8xl font-black font-mono tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-400 to-cyan-300 leading-none drop-shadow-md">
+            82%
+          </div>
+          <div class="space-y-1.5">
+            <div class="text-lg sm:text-xl md:text-2xl font-black text-white uppercase tracking-tight leading-snug">
+              Of SMEs Fail Due to Unexpected Cash Flow Shortages
+            </div>
+            <div class="inline-block px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 font-mono text-xs font-bold uppercase tracking-wide">
+              Not Because of Lack of Sales
+            </div>
+          </div>
+        </div>
+
+        <!-- CTA Action -->
+        <div class="shrink-0 flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+          <a href="/" class="w-full sm:w-auto px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm text-center shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2">
+            <span>Explore FlowShield Solution</span>
+            <i data-lucide="arrow-right" class="w-4 h-4"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- HOW FLOWSHIELD SOLVES THIS -->
+    <div class="space-y-6">
+      <div class="text-center space-y-2">
+        <h3 class="text-xl sm:text-2xl font-bold text-white tracking-tight">
+          How FlowShield Resolves the SME Cash Flow Paradox
+        </h3>
+        <p class="text-slate-400 text-xs sm:text-sm max-w-2xl mx-auto">
+          From reactive bookkeeping to forward-looking predictive risk intelligence.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 space-y-3 transition-all">
+          <div class="w-10 h-10 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 font-mono font-bold text-sm">
+            01
+          </div>
+          <h4 class="font-bold text-white text-base">Predictive Breach Warning</h4>
+          <p class="text-slate-400 text-xs leading-relaxed">
+            Forecasts the exact date cash balances will breach safety thresholds weeks before bank accounts drain.
+          </p>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 space-y-3 transition-all">
+          <div class="w-10 h-10 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 font-mono font-bold text-sm">
+            02
+          </div>
+          <h4 class="font-bold text-white text-base">Dynamic Receivable Discounting</h4>
+          <p class="text-slate-400 text-xs leading-relaxed">
+            Eliminates phantom paper profits by automatically probability-discounting overdue invoices based on real payment histories.
+          </p>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 space-y-3 transition-all">
+          <div class="w-10 h-10 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 font-mono font-bold text-sm">
+            03
+          </div>
+          <h4 class="font-bold text-white text-base">Counterfactual What-If Simulator</h4>
+          <p class="text-slate-400 text-xs leading-relaxed">
+            Simulate term extensions, customer advances, and supplier renegotiations before committing single rupees in the real world.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="pt-8 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+      <div class="flex items-center gap-2">
+        <img src="/flowshield_logo.svg" alt="FlowShield" class="w-5 h-5 object-contain" />
+        <span class="font-semibold text-slate-400">FlowShield</span>
+        <span>— SME CASH FLOW PREDICTOR</span>
+      </div>
+      <div class="font-mono text-[11px] text-slate-400">
+        PREDICT. PREPARE. PROTECT.
+      </div>
+    </footer>
+
+  </main>
+
+  <script>
+    lucide.createIcons();
+  </script>
+</body>
+</html>

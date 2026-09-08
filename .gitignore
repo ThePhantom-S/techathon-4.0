@@ -1,0 +1,24 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+
+# Local DB fallback store
+cashshock_local_db.json
+cashshock_postgres_db/
+pgdata_local/
+
+# Local runtime state
+flowshield_connector_state.json
+flowshield_whatsapp_settings.json
+
+# OS files
+Thumbs.db
+
+# Old subdirectory (kept for reference)
+Flowshield/

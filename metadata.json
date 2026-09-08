@@ -1,0 +1,6 @@
+{
+  "name": "CashShock",
+  "description": "Financial Decision Twin for SME Cash Survival. Simulates how supply-chain decisions propagate into future cash flow, predicts liquidity crises before they happen, and evaluates counterfactual decision strategies.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
