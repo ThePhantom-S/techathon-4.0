@@ -7,13 +7,13 @@ html {
 
 @layer base {
   :root {
-    --bg-main: #000000;
-    --bg-surface: #0A0A0A;
-    --bg-surface-elevated: #111111;
-    --border-main: #222222;
-    --text-primary: #EDEDED;
-    --text-secondary: #A1A1AA;
-    --text-muted: #71717A;
+    --bg-main: #FFFFFF;
+    --bg-surface: #FAFAFA;
+    --bg-surface-elevated: #F4F4F5;
+    --border-main: #EAEAEA;
+    --text-primary: #171717;
+    --text-secondary: #666666;
+    --text-muted: #8A8A8A;
     
     --color-safe: #22C55E;
     --color-warning: #EAB308;
@@ -52,7 +52,6 @@ html {
     overflow-x: hidden;
     background-color: var(--bg-main);
     color: var(--text-primary);
-    transition: background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
 }
 
