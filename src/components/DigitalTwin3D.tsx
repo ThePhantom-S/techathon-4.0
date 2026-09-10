@@ -27,8 +27,8 @@ import { useTheme } from '../context/ThemeContext';
 const NODE_LABEL_OFFSET: Record<MiniatureNodeKind, number> = {
   cash: 6.6,       // tank top ~5.2
   supplier: 5.2,   // chimney top ~4.0
-  inventory: 3.6,  // box stack top ~2.0
-  operations: 4.0, // gears/beacon top ~2.4
+  inventory: 4.8,  // box stack top ~3.5
+  operations: 4.8, // gears/beacon top ~3.3
   customer: 6.0,   // tower top 4.5
   service: 4.2,    // sphere top ~2.9
   recurring: 4.2,  // core top ~2.6
@@ -218,9 +218,12 @@ export const DigitalTwin3D: React.FC<DigitalTwin3DProps> = ({
       const boxGeo = new THREE.BoxGeometry(1.0, 0.9, 1.0);
       const boxMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.5, metalness: 0.2 });
       const boxBorderMat = new THREE.LineBasicMaterial({ color: accentHex });
-      for (let x = -1; x <= 1; x += 1.05) {
-        for (let z = -0.8; z <= 0.8; z += 1.05) {
-          for (let y = 0.6; y <= 1.5; y += 0.95) {
+      // Create a 3x3 base with 2 to 3 layers
+      for (let x = -1.05; x <= 1.05; x += 1.05) {
+        for (let z = -1.05; z <= 1.05; z += 1.05) {
+          // Randomize stack height between 2 and 3 layers so it's not a perfect cube
+          const topY = Math.random() > 0.5 ? 2.6 : 1.6;
+          for (let y = 0.7; y <= topY; y += 0.95) {
             const box = new THREE.Mesh(boxGeo, boxMat);
             box.position.set(x, y, z);
             box.castShadow = true;
@@ -237,12 +240,12 @@ export const DigitalTwin3D: React.FC<DigitalTwin3DProps> = ({
 
     if (kind === 'operations') {
       // Machine station
-      const body = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.8, 2.6), new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.7, roughness: 0.3 }));
-      body.position.y = 0.9;
+      const body = new THREE.Mesh(new THREE.BoxGeometry(3.4, 2.6, 2.6), new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.7, roughness: 0.3 }));
+      body.position.y = 1.3;
       body.castShadow = true;
       group.add(body);
       const belt = new THREE.Mesh(new THREE.BoxGeometry(4.0, 0.2, 1.4), new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.9 }));
-      belt.position.set(0, 1.0, 0);
+      belt.position.set(0, 1.5, 0);
       group.add(belt);
       const gearGeo = new THREE.CylinderGeometry(0.6, 0.6, 0.4, 12);
       const gearMat = new THREE.MeshStandardMaterial({ color: accentHex, metalness: 0.8 });
@@ -251,18 +254,18 @@ export const DigitalTwin3D: React.FC<DigitalTwin3DProps> = ({
       gear1.userData.spin = { axis: 'y', speed: 2.4 };
       const gearSpin1 = new THREE.Group();
       gearSpin1.rotation.x = Math.PI / 2;
-      gearSpin1.position.set(-0.8, 2.1, 0);
+      gearSpin1.position.set(-0.8, 2.9, 0);
       gearSpin1.add(gear1);
       group.add(gearSpin1);
       const gear2 = new THREE.Mesh(gearGeo, gearMat);
       gear2.userData.spin = { axis: 'y', speed: -1.9 };
       const gearSpin2 = new THREE.Group();
       gearSpin2.rotation.x = Math.PI / 2;
-      gearSpin2.position.set(0.8, 2.1, 0);
+      gearSpin2.position.set(0.8, 2.9, 0);
       gearSpin2.add(gear2);
       group.add(gearSpin2);
       const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.5, 16), new THREE.MeshBasicMaterial({ color: accentHex }));
-      beacon.position.set(1.3, 2.1, -0.8);
+      beacon.position.set(1.3, 2.9, -0.8);
       group.add(beacon);
       return group;
     }
@@ -392,6 +395,7 @@ export const DigitalTwin3D: React.FC<DigitalTwin3DProps> = ({
       const hexColor = parseInt(node.color.replace('#', ''), 16);
       const group = buildNodeGeometry(node.kind, hexColor, hexColor);
       group.position.copy(pos);
+      group.rotation.y = Math.PI / 8; // Angle nodes dynamically to the camera
       scene.add(group);
       nodeGroups[node.id] = group;
 
@@ -493,10 +497,12 @@ export const DigitalTwin3D: React.FC<DigitalTwin3DProps> = ({
 
       const laneIndex = Math.floor(Math.random() * 3) - 1;
       const zOff = laneIndex * 0.6;
-      const start = new THREE.Vector3(p1.x, 2.5, zOff);
-      const end = new THREE.Vector3(p2.x, 2.5, zOff);
+      
+      const start = new THREE.Vector3(p1.x, 1.2, p1.z + zOff);
+      const end = new THREE.Vector3(p2.x, 1.2, p2.z + zOff);
+      
       const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
-      mid.y += 1.6;
+      mid.y += 2.0;
 
       const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
 
