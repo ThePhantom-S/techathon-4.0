@@ -44,7 +44,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'what-if', label: 'Decision Impact Analysis', icon: Zap },
     { id: 'simulation', label: 'Business Miniature Model', icon: Box },
     { id: 'driver-analysis', label: 'Liquidity Risk Engine', icon: BarChart3 },
-    { id: 'liquidity-alerts', label: 'Liquidity Alert & Briefing', icon: Bell },
     { id: 'data-management', label: 'Ledger Data', icon: Database },
     { id: 'connector', label: 'Integrations', icon: Building2 },
     { id: 'settings', label: 'Settings', icon: Settings },

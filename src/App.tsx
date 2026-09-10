@@ -19,7 +19,6 @@ import { FinancialTimeMachine } from './components/FinancialTimeMachine';
 import { WhatIfSimulator } from './components/WhatIfSimulator';
 import { SettingsView } from './components/SettingsView';
 import { LoginView } from './components/LoginView';
-import { LiquidityAlertAndBriefingView } from './components/LiquidityNotifications';
 import { useTheme } from './context/ThemeContext';
 import { BusinessProfileProvider, useBusinessProfile } from './context/BusinessProfileContext';
 import { OnboardingOverlay } from './components/IndustrySelector';
@@ -895,11 +894,6 @@ function AppInner() {
                 onLoadSampleData={user?.isDemo ? handleLoadSampleData : undefined}
               />
             )
-          )}
-
-          {/* VIEW: LIQUIDITY ALERT & BRIEFING (WHATSAPP) */}
-          {activeTab === 'liquidity-alerts' && (
-            <LiquidityAlertAndBriefingView />
           )}
 
           {/* VIEW 3: BUSINESS MINIATURE MODEL & DECISION SIMULATOR */}
