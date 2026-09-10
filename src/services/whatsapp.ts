@@ -176,7 +176,7 @@ export interface LiquidityBriefPayload {
 // ── Message builders ────────────────────────────────────────────────────────
 function buildLiquidityAlertText(p: LiquidityBriefPayload): string {
   const lines: string[] = [];
-  lines.push('🚨 FlowShield Liquidity Alert');
+  lines.push('FlowShield Liquidity Alert');
   lines.push('');
   lines.push(`Business: ${p.businessName || 'Business Entity'}`);
   lines.push('');
@@ -224,7 +224,7 @@ function buildLiquidityAlertText(p: LiquidityBriefPayload): string {
 function buildEscalationText(p: LiquidityBriefPayload): string {
   const risk = riskLevelFor(p.breachProbability, !!p.expectedBreachDate && p.minProjectedCash90 !== undefined && (p.safetyFloor !== undefined && (p.minProjectedCash90 ?? 0) < p.safetyFloor));
   const lines: string[] = [];
-  lines.push('⚠️ FlowShield Risk Escalation');
+  lines.push('FlowShield Risk Escalation');
   lines.push('');
   lines.push(`Business: ${p.businessName || 'Business Entity'}`);
   lines.push(`Risk Level: ${risk}`);
@@ -245,7 +245,7 @@ function buildEscalationText(p: LiquidityBriefPayload): string {
 
 function buildWeeklyBriefingText(p: LiquidityBriefPayload): string {
   const lines: string[] = [];
-  lines.push('📊 FlowShield Weekly Liquidity Briefing');
+  lines.push('FlowShield Weekly Liquidity Briefing');
   lines.push('');
   lines.push(`Business: ${p.businessName || 'Business Entity'}`);
   lines.push(`Cash: ${p.currentCash !== undefined ? formatINR(p.currentCash) : 'N/A'}  |  Safety Floor: ${p.safetyFloor !== undefined ? formatINR(p.safetyFloor) : 'N/A'}`);
@@ -267,7 +267,7 @@ function buildWeeklyBriefingText(p: LiquidityBriefPayload): string {
 
 function buildFinancialReportText(p: LiquidityBriefPayload): string {
   const lines: string[] = [];
-  lines.push('📄 FlowShield Financial Report');
+  lines.push('FlowShield Financial Report');
   lines.push('');
   lines.push(`Business: ${p.businessName || 'Business Entity'}`);
   lines.push('');
@@ -306,7 +306,7 @@ export async function sendWhatsAppMessage(text: string, recipient?: string): Pro
 
 /** Simple connectivity test message. */
 export async function sendTestMessage(recipient?: string): Promise<SendResult> {
-  return sendWhatsAppMessage('🚀 FlowShield\n\nWhatsApp integration is working.', recipient);
+  return sendWhatsAppMessage('FlowShield\n\nWhatsApp integration is working.', recipient);
 }
 
 /** Current verified liquidity alert with forecast, risk, drivers and action. */

@@ -276,7 +276,7 @@ export const AiInsightsPanel: React.FC<AiInsightsPanelProps> = ({
       </div>
 
       {/* Integrate Your AI Keys Banner */}
-      {!localStorage.getItem('flowshield_api_key') && !localStorage.getItem('groq_api_key') && !localStorage.getItem('gemini_api_key') && (
+      {!localStorage.getItem('openrouter_api_key') && !localStorage.getItem('groq_api_key') && !localStorage.getItem('gemini_api_key') && (
         <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
           isLight ? 'bg-amber-50/80 border-amber-200 text-amber-900' : 'bg-amber-500/10 border-amber-500/30 text-amber-200'
         }`}>
@@ -421,8 +421,14 @@ export const AiInsightsPanel: React.FC<AiInsightsPanelProps> = ({
               return (
                 <div key={idx} className={`rounded-xl border p-3.5 ${severityCls}`}>
                   <div className="flex items-start gap-2.5">
-                    <span className="text-base leading-none mt-0.5 shrink-0">
-                      {sig.severity === 'CRITICAL' ? '🔴' : sig.severity === 'WARNING' ? '🟠' : '🟡'}
+                    <span className="flex items-center justify-center mt-0.5 shrink-0">
+                      {sig.severity === 'CRITICAL' ? (
+                        <AlertCircle className="w-4 h-4 text-red-500" />
+                      ) : sig.severity === 'WARNING' ? (
+                        <AlertTriangle className="w-4 h-4 text-amber-500" />
+                      ) : (
+                        <Info className="w-4 h-4 text-blue-500" />
+                      )}
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">

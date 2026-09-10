@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Expense, InventoryItem, Payable, Supplier, Transaction } from '../types';
-import { Upload, Download, CheckCircle2 } from 'lucide-react';
+import { Upload, Download, CheckCircle2, Database } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { generateBankStatementTemplate, generateCashShockTemplate } from '../engine/csvParser';
 
@@ -89,10 +89,13 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className={`text-2xl font-semibold tracking-tight ${isLight ? 'text-[#171717]' : 'text-[#EDEDED]'}`}>
-            SME Financial Events Ledger
-          </h1>
-          <p className={`text-xs mt-1 ${isLight ? 'text-[#666666]' : 'text-[#A1A1AA]'}`}>
+          <h2 className={`text-xl font-bold tracking-tight flex items-center gap-2 ${
+            isLight ? 'text-slate-900' : 'text-white'
+          }`}>
+            <Database className="w-5 h-5 text-indigo-500" />
+            FlowShield — SME Financial Events Ledger
+          </h2>
+          <p className={`text-xs mt-0.5 ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
             Inspect and ingest financial transactions, payables, inventory, and supplier parameters.
           </p>
         </div>
@@ -114,7 +117,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
             }`}
           >
             <Download className="w-3.5 h-3.5" />
-            CashShock CSV
+            FlowShield CSV
           </button>
           <button
             onClick={onResetDemoData}

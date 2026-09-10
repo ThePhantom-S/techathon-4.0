@@ -373,6 +373,8 @@ export async function initDb() {
       ['tx-102', '2026-10-28', 'Shakti Enterprise Client Order (Partial)', 900000.00, '2026-10-28', 1.00, 'PENDING'],
       ['tx-103', '2026-11-12', 'Global Electro-Components', 1200000.00, '2026-11-12', 0.95, 'PENDING'],
       ['tx-104', '2026-11-25', 'Shakti Enterprise Client Order (Final)', 2100000.00, '2026-11-25', 1.00, 'PENDING'],
+      ['tx-105', '2026-12-10', 'TechCorp Industries (Phase 2 Delivery)', 1400000.00, '2026-12-10', 0.95, 'PENDING'],
+      ['tx-106', '2026-12-22', 'Bharat Heavy Electricals Consortium', 1600000.00, '2026-12-22', 0.90, 'PENDING'],
     ];
     for (const t of txs) {
       await dbQuery(`
@@ -387,6 +389,9 @@ export async function initDb() {
       ['pay-203', 'State Power Board', 120000.00, '2026-10-20', 'Utilities', 'DUE'],
       ['pay-204', 'Silico Tech Materials', 350000.00, '2026-11-05', 'Raw Material', 'DUE'],
       ['pay-205', 'Industrial Rent Corp', 180000.00, '2026-11-01', 'Facility Rent', 'DUE'],
+      ['pay-206', 'Industrial Rent Corp', 180000.00, '2026-12-01', 'Facility Rent', 'DUE'],
+      ['pay-207', 'Silico Tech Materials', 520000.00, '2026-12-12', 'Raw Material', 'DUE'],
+      ['pay-208', 'Apex Logistics Services', 210000.00, '2026-12-18', 'Freight & Shipping', 'DUE'],
     ];
     for (const b of bills) {
       await dbQuery(`
@@ -400,6 +405,8 @@ export async function initDb() {
       ['exp-2', '2026-10-25', 'Factory Operations', 80000.00],
       ['exp-3', '2026-11-05', 'Operational Staff Payroll', 220000.00],
       ['exp-4', '2026-11-25', 'Factory Operations', 80000.00],
+      ['exp-5', '2026-12-05', 'Operational Staff Payroll', 220000.00],
+      ['exp-6', '2026-12-25', 'Factory Operations', 80000.00],
     ];
     for (const e of exps) {
       await dbQuery(`

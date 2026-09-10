@@ -1,11 +1,17 @@
 import React from 'react';
 import { Search, Download, Building2, Sun, Moon, RefreshCw, LogOut, Menu } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { IndustryIcon } from './IndustryIcon';
+
+export type DashboardSubTab = 'overview' | 'risk-map' | 'inflows' | 'outflows';
 
 interface HeaderProps {
   activeTab?: string;
-  activeSubTab: string;
-  setActiveSubTab: (tab: string) => void;
+  activeSubTab?: string;
+  setActiveSubTab?: (tab: string) => void;
+  dashboardSubTab?: DashboardSubTab;
+  setDashboardSubTab?: (tab: DashboardSubTab) => void;
+  hasBreach?: boolean;
   onExportReport: () => void;
   onRefresh: () => void;
   onOpenConnector: () => void;
@@ -21,6 +27,9 @@ export const Header: React.FC<HeaderProps> = ({
   activeTab = 'dashboard',
   activeSubTab,
   setActiveSubTab,
+  dashboardSubTab,
+  setDashboardSubTab,
+  hasBreach,
   onExportReport,
   onRefresh,
   onOpenConnector,
@@ -33,21 +42,13 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const { theme, toggleTheme } = useTheme();
   const isLight = theme === 'light';
-  const subTabs = ['Overview', 'Liquidity Exposure', 'Inflows', 'Outflows', 'Financial Intelligence'];
 
-  const getTabTitle = (tab?: string) => {
-    switch (tab) {
-      case 'dashboard': return 'Financial Command Center';
-      case 'time-machine': return 'Cash Flow Timeline';
-      case 'what-if': return 'Decision Impact Analysis';
-      case 'driver-analysis': return 'Liquidity Risk Engine';
-      case 'simulation': return 'Business Miniature Model';
-      case 'liquidity-alerts': return 'Liquidity Alert & Briefing';
-      case 'data-management': return 'Data Management';
-      case 'settings': return 'Platform Settings';
-      default: return 'Financial Command Center';
-    }
-  };
+  const DASHBOARD_TABS: { id: DashboardSubTab; label: string }[] = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'risk-map', label: 'Risk Map' },
+    { id: 'inflows', label: 'Inflows' },
+    { id: 'outflows', label: 'Outflows' },
+  ];
 
   return (
     <header className={`h-14 border-b flex items-center justify-between px-3 sm:px-4 lg:px-6 sticky top-0 z-40 font-sans transition-colors duration-150 whitespace-nowrap ${
@@ -55,51 +56,54 @@ export const Header: React.FC<HeaderProps> = ({
         ? 'bg-[#FFFFFF] border-[#EAEAEA] text-[#171717]' 
         : 'bg-[#000000] border-[#222222] text-[#EDEDED]'
     }`}>
-      {/* Breadcrumb & Sub-tabs */}
-      <div className="flex items-center gap-2 sm:gap-3 lg:gap-4 min-w-0">
-        {/* Mobile Sidebar Hamburger Toggle */}
+      {/* Mobile Sidebar Hamburger Toggle & Dashboard Tabs */}
+      <div className="flex items-center gap-3 sm:gap-5 min-w-0">
         {onToggleSidebar && (
-          <button
-            onClick={onToggleSidebar}
-            className={`lg:hidden p-1.5 rounded-lg border transition-all cursor-pointer ${
-              isLight
-                ? 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                : 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-800'
-            }`}
-            aria-label="Open Navigation Menu"
-          >
-            <Menu className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2 lg:hidden shrink-0">
+            <button
+              onClick={onToggleSidebar}
+              className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                isLight
+                  ? 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                  : 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-800'
+              }`}
+              aria-label="Open Navigation Menu"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-1.5">
+              <img src="/flowshield_logo.svg" alt="FlowShield" className="w-5 h-5 object-contain" />
+              <span className={`font-bold text-xs tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                FlowShield
+              </span>
+            </div>
+          </div>
         )}
 
-        <div className="flex items-center gap-1.5 sm:gap-2 text-xs font-mono whitespace-nowrap shrink-0">
-          <span className={isLight ? 'text-[#8A8A8A]' : 'text-[#71717A]'}>FlowShield</span>
-          <span className={isLight ? 'text-[#CBD5E1]' : 'text-[#333333]'}>/</span>
-          <span className={`font-semibold whitespace-nowrap text-xs truncate max-w-[130px] sm:max-w-none ${isLight ? 'text-[#171717]' : 'text-[#EDEDED]'}`}>
-            {getTabTitle(activeTab)}
-          </span>
-        </div>
-
-        {/* Sub-tabs Navigation — Only visible on Dashboard view */}
-        {(activeTab === 'dashboard' || !activeTab) && (
-          <nav className={`hidden md:flex items-center gap-1 ml-2 lg:ml-4 pl-2 lg:pl-4 border-l shrink-0 whitespace-nowrap ${
-            isLight ? 'border-[#EAEAEA]' : 'border-[#222222]'
-          }`}>
-            {subTabs.map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveSubTab(tab)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-all duration-150 cursor-pointer active:scale-[0.97] ${
-                  activeSubTab === tab
-                    ? 'bg-indigo-600 text-white font-bold shadow-sm shadow-indigo-500/20'
-                    : isLight
-                      ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                      : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900'
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
+        {/* Dashboard Segregated Sub-Navigation (Exact Pill & Plain-Text Switcher) */}
+        {activeTab === 'dashboard' && dashboardSubTab && setDashboardSubTab && (
+          <nav
+            aria-label="Dashboard Sub Navigation"
+            className="flex items-center gap-4 sm:gap-6 overflow-x-auto no-scrollbar py-1"
+          >
+            {DASHBOARD_TABS.map((tab) => {
+              const isActive = dashboardSubTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setDashboardSubTab(tab.id)}
+                  className={`text-xs sm:text-sm font-semibold transition-all duration-150 cursor-pointer whitespace-nowrap ${
+                    isActive
+                      ? 'bg-indigo-600 text-white px-4 py-1.5 rounded-full shadow-xs'
+                      : isLight
+                        ? 'text-slate-600 hover:text-slate-950 px-1 py-1'
+                        : 'text-zinc-400 hover:text-white px-1 py-1'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
           </nav>
         )}
       </div>
@@ -119,8 +123,9 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="flex flex-col items-start leading-tight">
             <span className="font-mono text-xs hidden xl:inline whitespace-nowrap">{businessName}</span>
             {industryName && (
-              <span className="text-[9px] font-mono hidden xl:inline whitespace-nowrap opacity-80">
-                {industryIcon} {industryName}
+              <span className="text-[9px] font-mono hidden xl:inline-flex items-center gap-1 whitespace-nowrap opacity-80">
+                <IndustryIcon icon={industryIcon} className="w-2.5 h-2.5 shrink-0" />
+                <span>{industryName}</span>
               </span>
             )}
           </span>

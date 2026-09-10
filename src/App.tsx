@@ -34,7 +34,7 @@ import { runSimulationEngine, formatINR } from './engine/calculator';
 import { parseCSV } from './engine/csvParser';
 import { generatePDFReport } from './engine/pdfGenerator';
 import { Transaction, Payable, Expense } from './types';
-import { Zap, Bot } from 'lucide-react';
+import { Zap, Bot, Box } from 'lucide-react';
 
 export default function App() {
   return (
@@ -60,8 +60,13 @@ function AppInner() {
     return localStorage.getItem('flowshield_authenticated') === 'true';
   });
 
+  // Cleanly purge any stale legacy generic API key
+  useEffect(() => {
+    localStorage.removeItem('flowshield_api_key');
+  }, []);
+
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [activeSubTab, setActiveSubTab] = useState('Overview');
+  const [dashboardSubTab, setDashboardSubTab] = useState<'overview' | 'risk-map' | 'inflows' | 'outflows'>('overview');
   const [supplierDelayDays, setSupplierDelayDays] = useState(demoConfig.supplier_delay_days);
   const [activeCounterfactual, setActiveCounterfactual] = useState<string | null>(null);
   const [isConnectorOpen, setIsConnectorOpen] = useState(false);
@@ -182,7 +187,7 @@ function AppInner() {
   // Smooth scroll to top on tab & subtab navigation
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [activeTab, activeSubTab]);
+  }, [activeTab]);
 
   // Active overrides based on selected counterfactual card
   const overrides = useMemo(() => {
@@ -251,8 +256,7 @@ function AppInner() {
       {isOnboarding && (
         <OnboardingOverlay
           onComplete={() => {
-            // Demo switch already reloaded the ledger via the context callback
-            setActiveSubTab('Overview');
+            setActiveTab('dashboard');
           }}
         />
       )}
@@ -278,8 +282,9 @@ function AppInner() {
         {/* Top Header Bar */}
         <Header
           activeTab={activeTab}
-          activeSubTab={activeSubTab}
-          setActiveSubTab={setActiveSubTab}
+          dashboardSubTab={dashboardSubTab}
+          setDashboardSubTab={setDashboardSubTab}
+          hasBreach={simulationResult?.hasBreach}
           onExportReport={handleExportReport}
           onRefresh={() => setSupplierDelayDays(20)}
           onOpenConnector={() => setIsConnectorOpen(true)}
@@ -291,29 +296,6 @@ function AppInner() {
           industryIcon={industryProfile.icon}
         />
 
-        {/* Mobile Sub-tabs Pill Bar (Dashboard) */}
-        {(activeTab === 'dashboard' || !activeTab) && (
-          <div className={`md:hidden px-3 py-2 border-b flex items-center gap-1.5 overflow-x-auto no-scrollbar sticky top-14 z-30 ${
-            isLight ? 'bg-white/95 border-slate-200 shadow-xs' : 'bg-black/95 border-zinc-800'
-          }`}>
-            {['Overview', 'Liquidity Exposure', 'Inflows', 'Outflows', 'Financial Intelligence'].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveSubTab(tab)}
-                className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-all cursor-pointer ${
-                  activeSubTab === tab
-                    ? 'bg-indigo-600 text-white font-bold shadow-xs'
-                    : isLight
-                      ? 'text-slate-600 bg-slate-100 hover:bg-slate-200'
-                      : 'text-zinc-400 bg-zinc-900 hover:bg-zinc-800'
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-        )}
-
         {/* View Content Area */}
         <main className="flex-1 p-3 sm:p-4 md:p-6 space-y-4 md:space-y-6 pb-20 max-w-[1600px] w-full mx-auto">
           {/* VIEW 1: DASHBOARD / OVERVIEW */}
@@ -322,10 +304,11 @@ function AppInner() {
               simulationResult={simulationResult}
               cashFloor={config.cash_floor}
               isLoading={isLoading}
-              activeSubTab={activeSubTab}
               supplierDelayDays={supplierDelayDays}
               industryProfile={industryProfile}
               businessName={businessProfile.businessName}
+              currentTab={dashboardSubTab}
+              onTabChange={setDashboardSubTab}
             />
           )}
 
@@ -372,18 +355,21 @@ function AppInner() {
           {/* VIEW 3: BUSINESS MINIATURE MODEL & DECISION SIMULATOR */}
           {activeTab === 'simulation' && (
             <div className="space-y-6">
-              <div className={`border-b pb-3 flex justify-between items-center ${isLight ? 'border-[#EAEAEA]' : 'border-[#222222]'}`}>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <div>
-                  <h1 className={`text-2xl font-semibold tracking-tight ${isLight ? 'text-[#171717]' : 'text-[#EDEDED]'}`}>
-                    Business Miniature Model &amp; Decision Simulator
-                  </h1>
-                  <p className={`text-xs mt-1 ${isLight ? 'text-[#666666]' : 'text-[#A1A1AA]'}`}>
+                  <h2 className={`text-xl font-bold tracking-tight flex items-center gap-2 ${
+                    isLight ? 'text-slate-900' : 'text-white'
+                  }`}>
+                    <Box className="w-5 h-5 text-indigo-500" />
+                    FlowShield — Business Miniature Model &amp; Decision Simulator
+                  </h2>
+                  <p className={`text-xs mt-0.5 ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
                     Interactive 3D supply chain map, delivery delay simulation, and scenario strategy testing.
                   </p>
                 </div>
                 <button
                   onClick={() => setSupplierDelayDays(20)}
-                  className={`px-3 py-1.5 rounded border text-xs font-mono font-medium transition-colors cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-full border text-xs font-mono font-medium transition-colors cursor-pointer shrink-0 ${
                     isLight
                       ? 'bg-[#FFFFFF] border-[#EAEAEA] text-[#171717] hover:bg-[#FAFAFA]'
                       : 'bg-[#111111] border-[#222222] text-[#EDEDED] hover:bg-[#1A1A1A]'
@@ -499,10 +485,10 @@ function AppInner() {
             ? 'bg-[#171717] text-white border-slate-700 hover:bg-slate-800'
             : 'bg-[#EDEDED] text-black border-slate-300 hover:bg-white'
         }`}
-        title="Open FlowShield Financial Intelligence Assistant"
+        title="Open FlowShield AI Chat"
       >
         <Bot className="w-4 h-4" />
-        <span>Financial Intelligence</span>
+        <span>AI Chat</span>
       </button>
 
       {/* Grounded AI Advisor Chatbot Modal */}
@@ -514,6 +500,7 @@ function AppInner() {
         supplierDelayDays={supplierDelayDays}
         industryName={industryProfile.name}
         industryId={industryProfile.id}
+        businessName={businessProfile.businessName}
       />
     </div>
   );

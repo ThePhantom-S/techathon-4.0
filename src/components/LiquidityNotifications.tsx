@@ -49,7 +49,7 @@ export async function sendWhatsAppTestAlert(): Promise<AlertSendResult> {
     const res = await fetch('/api/notifications/whatsapp/test', { method: 'POST' });
     const data = await res.json();
     if (res.ok && data.success) {
-      return { ok: true, message: '✓ Test alert sent to WhatsApp.' };
+      return { ok: true, message: 'Test alert sent to WhatsApp.' };
     }
     return { ok: false, message: data?.error || 'Unable to send the WhatsApp test alert.' };
   } catch {
@@ -62,7 +62,7 @@ export async function sendWhatsAppLiquidityBrief(): Promise<AlertSendResult> {
     const res = await fetch('/api/notifications/whatsapp/send', { method: 'POST' });
     const data = await res.json();
     if (res.ok && data.success) {
-      return { ok: true, message: '✓ Liquidity brief sent to WhatsApp.' };
+      return { ok: true, message: 'Liquidity brief sent to WhatsApp.' };
     }
     return { ok: false, message: data?.error || 'Unable to send the WhatsApp liquidity brief.' };
   } catch {
@@ -158,19 +158,22 @@ const LiquidityNotificationsPanelInner: React.FC<PanelProps> = ({ embedded = fal
   return (
     <div className="space-y-4">
       {!embedded && (
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-500 shrink-0">
-              <MessageCircle className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className={`text-2xl font-semibold tracking-tight ${isLight ? 'text-[#171717]' : 'text-[#EDEDED]'}`}>
-                Liquidity Alert &amp; Briefing
-              </h1>
-              <p className={`text-xs mt-0.5 ${isLight ? 'text-[#666666]' : 'text-[#A1A1AA]'}`}>
-                Send your verified liquidity position, forecast, and recommended action to the owner&apos;s WhatsApp.
-              </p>
-            </div>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div>
+            <h2 className={`text-xl font-bold tracking-tight flex items-center gap-2 ${
+              isLight ? 'text-slate-900' : 'text-white'
+            }`}>
+              <MessageCircle className="w-5 h-5 text-emerald-500" />
+              FlowShield — Liquidity Alert &amp; Briefing
+            </h2>
+            <p className={`text-xs mt-0.5 ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
+              Send your verified liquidity position, forecast, and recommended action to the owner&apos;s WhatsApp.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-xs font-mono">
+            <span className="px-3 py-1 rounded-full border bg-emerald-500/10 border-emerald-500/30 text-emerald-500 font-bold">
+              WhatsApp Integration
+            </span>
           </div>
         </div>
       )}

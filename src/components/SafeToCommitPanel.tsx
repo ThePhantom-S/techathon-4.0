@@ -15,6 +15,7 @@ import { Config, Expense, IndustryProfile, Payable, SafeToCommitResult, Transact
 import { runSafeToCommitAnalysis } from '../engine/safeToCommit';
 import { formatINR } from '../engine/calculator';
 import { useTheme } from '../context/ThemeContext';
+import { IndustryIcon } from './IndustryIcon';
 
 interface SafeToCommitPanelProps {
   config: Config;
@@ -115,7 +116,11 @@ export const SafeToCommitPanel: React.FC<SafeToCommitPanelProps> = ({
       <div className={`flex items-center justify-between border-b pb-3 ${isLight ? 'border-[#EAEAEA]' : 'border-[#222222]'}`}>
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-lg">{industryProfile.icon}</span>
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+              isLight ? 'bg-indigo-50 border border-indigo-200 text-indigo-600' : 'bg-indigo-500/15 border border-indigo-500/30 text-indigo-400'
+            }`}>
+              <IndustryIcon icon={industryProfile.icon} className="w-3.5 h-3.5" />
+            </div>
             <h2 className={`text-base font-semibold ${isLight ? 'text-[#171717]' : 'text-[#EDEDED]'}`}>
               Safe-to-Commit
             </h2>

@@ -46,19 +46,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   // Fetch current provider status and local storage keys on mount
   useEffect(() => {
+    localStorage.removeItem('flowshield_api_key');
     const savedGemini = localStorage.getItem('gemini_api_key') || '';
     const savedGroq = localStorage.getItem('groq_api_key') || '';
     const savedOpenRouter = localStorage.getItem('openrouter_api_key') || '';
-    const legacyKey = localStorage.getItem('flowshield_api_key') || '';
 
     if (savedGemini) setGeminiKey(savedGemini);
-    else if (legacyKey.startsWith('AIza')) setGeminiKey(legacyKey);
-
     if (savedGroq) setGroqKey(savedGroq);
-    else if (legacyKey.startsWith('gsk_')) setGroqKey(legacyKey);
-
     if (savedOpenRouter) setOpenRouterKey(savedOpenRouter);
-    else if (legacyKey.startsWith('sk-or-')) setOpenRouterKey(legacyKey);
 
     fetch('/api/health')
       .then((res) => res.json())
@@ -118,13 +113,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {/* ── HEADER ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
-          <h1 className={`text-2xl font-bold tracking-tight flex items-center gap-2.5 ${
+          <h2 className={`text-xl font-bold tracking-tight flex items-center gap-2 ${
             isLight ? 'text-slate-900' : 'text-white'
           }`}>
-            <SettingsIcon className="w-6 h-6 text-indigo-600" />
-            Platform &amp; AI Configuration Settings
-          </h1>
-          <p className={`text-xs mt-1 ${isLight ? 'text-slate-600' : 'text-zinc-400'}`}>
+            <SettingsIcon className="w-5 h-5 text-indigo-500" />
+            FlowShield — Platform &amp; AI Configuration Settings
+          </h2>
+          <p className={`text-xs mt-0.5 ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
             Manage AI LLM provider API keys, cash safety thresholds, and business parameters.
           </p>
         </div>
@@ -317,7 +312,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </h2>
             <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
               {industryProfile && businessProfile
-                ? `${businessProfile.businessName} · ${industryProfile.icon} ${industryProfile.name}`
+                ? `${businessProfile.businessName} · ${industryProfile.name}`
                 : 'Set your business type to personalize analysis'}
             </p>
           </div>

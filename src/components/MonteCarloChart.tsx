@@ -97,24 +97,25 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({ simulationResu
   return (
     <div className={`rounded-2xl border p-6 ${isLight ? 'bg-white border-slate-200' : 'bg-[#0A0A0A] border-[#222222]'}`}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
         <div>
-          <h2 className={`text-xl font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>
-            Liquidity Risk Engine — Minimum Cash Distribution
+          <h2 className={`text-xl font-bold tracking-tight flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+            <BarChart3 className="w-5 h-5 text-indigo-500" />
+            FlowShield — Liquidity Risk Engine
           </h2>
-          <p className={`text-sm mt-1 ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
-            {totalRuns} simulated minimum-cash outcomes
+          <p className={`text-xs mt-0.5 ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
+            {totalRuns} simulated minimum-cash outcomes across probabilistic shock scenarios.
           </p>
         </div>
         <button
           onClick={fetchData}
           disabled={loading}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors cursor-pointer ${
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-mono font-medium border transition-colors cursor-pointer shrink-0 ${
             isLight ? 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800'
           }`}
         >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          Re-run
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          Re-run Simulation
         </button>
       </div>
 

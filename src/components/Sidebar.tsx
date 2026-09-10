@@ -147,7 +147,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           }`}
         >
           <Bot className="w-3.5 h-3.5" />
-          <span>Financial Intelligence Assistant</span>
+          <span>AI Chat</span>
         </button>
 
         <button

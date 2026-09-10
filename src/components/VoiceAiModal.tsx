@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Mic, MicOff, Volume2, VolumeX, Sparkles, Send, X, CheckCircle2 } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, Sparkles, Send, X, CheckCircle2, Lock, Key } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
 interface VoiceAiModalProps {
@@ -18,6 +18,25 @@ export const VoiceAiModal: React.FC<VoiceAiModalProps> = ({ isOpen, onClose, ver
   const [loading, setLoading] = useState(false);
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [recommendedAction, setRecommendedAction] = useState<string | null>(null);
+  const [hasServerKey, setHasServerKey] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch('/api/health')
+      .then((res) => res.json())
+      .then((data) => {
+        const hasKey = !!(data.providers?.groq || data.providers?.gemini || data.providers?.openrouter);
+        setHasServerKey(hasKey);
+      })
+      .catch(() => setHasServerKey(false));
+  }, [isOpen]);
+
+  const hasLocalKey = !!(
+    localStorage.getItem('gemini_api_key') ||
+    localStorage.getItem('groq_api_key') ||
+    localStorage.getItem('openrouter_api_key')
+  );
+
+  const isAiConfigured = hasLocalKey || !!hasServerKey;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -51,6 +70,7 @@ export const VoiceAiModal: React.FC<VoiceAiModalProps> = ({ isOpen, onClose, ver
   }, [isListening, isOpen]);
 
   const toggleListening = () => {
+    if (!isAiConfigured) return;
     setIsListening(!isListening);
   };
 
@@ -74,7 +94,7 @@ export const VoiceAiModal: React.FC<VoiceAiModalProps> = ({ isOpen, onClose, ver
   };
 
   const handleSendQuery = async (userQuery: string) => {
-    if (!userQuery.trim()) return;
+    if (!userQuery.trim() || !isAiConfigured) return;
     setLoading(true);
     setAiResponse(null);
     setRecommendedAction(null);
@@ -83,7 +103,6 @@ export const VoiceAiModal: React.FC<VoiceAiModalProps> = ({ isOpen, onClose, ver
       const geminiKey = localStorage.getItem('gemini_api_key') || '';
       const groqKey = localStorage.getItem('groq_api_key') || '';
       const openRouterKey = localStorage.getItem('openrouter_api_key') || '';
-      const storedKey = localStorage.getItem('flowshield_api_key') || '';
       const res = await fetch('/api/explain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -93,7 +112,6 @@ export const VoiceAiModal: React.FC<VoiceAiModalProps> = ({ isOpen, onClose, ver
           geminiKey,
           groqKey,
           openRouterKey,
-          apiKey: storedKey,
         }),
       });
       const data = await res.json();
@@ -156,6 +174,29 @@ export const VoiceAiModal: React.FC<VoiceAiModalProps> = ({ isOpen, onClose, ver
 
         {/* Modal Body */}
         <div className="p-5 space-y-4 flex-1 overflow-y-auto">
+          {/* API Key Required Notice */}
+          {!isAiConfigured && (
+            <div className={`p-4 rounded-xl border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs ${
+              isLight ? 'bg-amber-50/80 border-amber-200 text-amber-950' : 'bg-zinc-900/80 border-amber-500/30 text-zinc-200'
+            }`}>
+              <div className="flex items-center gap-2.5">
+                <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+                <span className="font-mono text-[11px]">Voice AI is locked: API key required in Settings.</span>
+              </div>
+              <button
+                onClick={() => {
+                  stopSpeaking();
+                  onClose();
+                  const settingsBtn = document.querySelector('[data-tab="settings"]') as HTMLElement;
+                  if (settingsBtn) settingsBtn.click();
+                }}
+                className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-mono text-[11px] font-bold transition-colors cursor-pointer shrink-0 shadow-sm"
+              >
+                Configure Keys
+              </button>
+            </div>
+          )}
+
           {/* Preset Buttons */}
           <div>
             <span className={`text-[10px] font-mono block mb-2 ${isLight ? 'text-[#8A8A8A]' : 'text-[#71717A]'}`}>
@@ -165,12 +206,17 @@ export const VoiceAiModal: React.FC<VoiceAiModalProps> = ({ isOpen, onClose, ver
               {presetQueries.map((pq) => (
                 <button
                   key={pq}
+                  disabled={!isAiConfigured}
                   onClick={() => {
                     setQuery(pq);
                     handleSendQuery(pq);
                   }}
-                  className={`px-3 py-1.5 rounded-full border transition-all duration-150 cursor-pointer active:scale-[0.97] ${
-                    isLight ? 'bg-[#FAFAFA] border-[#EAEAEA] text-[#171717] hover:bg-[#F4F4F5]' : 'bg-[#111111] border-[#222222] text-[#EDEDED] hover:bg-[#1A1A1A]'
+                  className={`px-3 py-1.5 rounded-full border transition-all duration-150 ${
+                    !isAiConfigured
+                      ? 'opacity-40 cursor-not-allowed bg-transparent border-dashed'
+                      : isLight
+                      ? 'bg-[#FAFAFA] border-[#EAEAEA] text-[#171717] hover:bg-[#F4F4F5] cursor-pointer active:scale-[0.97]'
+                      : 'bg-[#111111] border-[#222222] text-[#EDEDED] hover:bg-[#1A1A1A] cursor-pointer active:scale-[0.97]'
                   }`}
                 >
                   "{pq}"
@@ -242,42 +288,66 @@ export const VoiceAiModal: React.FC<VoiceAiModalProps> = ({ isOpen, onClose, ver
         <div className={`p-4 border-t flex items-center gap-2 ${
           isLight ? 'bg-[#FAFAFA] border-[#EAEAEA]' : 'bg-[#0A0A0A] border-[#222222]'
         }`}>
-          <button
-            onClick={toggleListening}
-            className={`p-2.5 rounded-full border transition-all duration-150 cursor-pointer active:scale-[0.95] ${
-              isListening
-                ? 'bg-[#EF4444] text-white border-[#EF4444]'
-                : isLight
-                ? 'bg-[#FFFFFF] border-[#EAEAEA] text-[#171717]'
-                : 'bg-[#111111] border-[#222222] text-[#EDEDED]'
-            }`}
-            title={isListening ? 'Stop Mic' : 'Start Voice'}
-          >
-            {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-          </button>
+          {!isAiConfigured ? (
+            <div className={`w-full p-2.5 rounded-xl border flex items-center justify-between gap-2 text-xs ${
+              isLight ? 'bg-slate-100 border-slate-200 text-slate-600' : 'bg-zinc-900 border-zinc-800 text-zinc-400'
+            }`}>
+              <div className="flex items-center gap-2 font-mono text-[11px]">
+                <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <span>Voice input locked &bull; Configure API key in Settings</span>
+              </div>
+              <button
+                onClick={() => {
+                  stopSpeaking();
+                  onClose();
+                  const settingsBtn = document.querySelector('[data-tab="settings"]') as HTMLElement;
+                  if (settingsBtn) settingsBtn.click();
+                }}
+                className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-mono text-[10px] font-bold cursor-pointer shrink-0"
+              >
+                Settings &rarr;
+              </button>
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={toggleListening}
+                className={`p-2.5 rounded-full border transition-all duration-150 cursor-pointer active:scale-[0.95] ${
+                  isListening
+                    ? 'bg-[#EF4444] text-white border-[#EF4444]'
+                    : isLight
+                    ? 'bg-[#FFFFFF] border-[#EAEAEA] text-[#171717]'
+                    : 'bg-[#111111] border-[#222222] text-[#EDEDED]'
+                }`}
+                title={isListening ? 'Stop Mic' : 'Start Voice'}
+              >
+                {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+              </button>
 
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSendQuery(query)}
-            placeholder="Ask a question..."
-            className={`flex-1 border rounded-full px-4 py-2 text-xs font-mono focus:outline-none ${
-              isLight
-                ? 'bg-[#FFFFFF] border-[#EAEAEA] text-[#171717] placeholder-[#8A8A8A]'
-                : 'bg-[#111111] border-[#222222] text-[#EDEDED] placeholder-[#71717A]'
-            }`}
-          />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSendQuery(query)}
+                placeholder="Ask a question..."
+                className={`flex-1 border rounded-full px-4 py-2 text-xs font-mono focus:outline-none ${
+                  isLight
+                    ? 'bg-[#FFFFFF] border-[#EAEAEA] text-[#171717] placeholder-[#8A8A8A]'
+                    : 'bg-[#111111] border-[#222222] text-[#EDEDED] placeholder-[#71717A]'
+                }`}
+              />
 
-          <button
-            onClick={() => handleSendQuery(query)}
-            disabled={!query.trim() || loading}
-            className={`p-2 rounded-full font-medium text-xs transition-all duration-150 cursor-pointer active:scale-[0.95] disabled:opacity-40 ${
-              isLight ? 'bg-[#171717] text-[#FFFFFF]' : 'bg-[#EDEDED] text-[#000000]'
-            }`}
-          >
-            <Send className="w-4 h-4" />
-          </button>
+              <button
+                onClick={() => handleSendQuery(query)}
+                disabled={!query.trim() || loading}
+                className={`p-2 rounded-full font-medium text-xs transition-all duration-150 cursor-pointer active:scale-[0.95] disabled:opacity-40 ${
+                  isLight ? 'bg-[#171717] text-[#FFFFFF]' : 'bg-[#EDEDED] text-[#000000]'
+                }`}
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

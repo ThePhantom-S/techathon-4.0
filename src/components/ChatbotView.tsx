@@ -13,7 +13,10 @@ import {
   TrendingDown,
   AlertTriangle,
   ShieldCheck,
+  Lock,
+  Key,
 } from 'lucide-react';
+import { formatINR } from '../engine/calculator';
 import { useTheme } from '../context/ThemeContext';
 
 interface Message {
@@ -29,12 +32,19 @@ interface ChatbotViewProps {
   cashFloor: number;
   supplierDelayDays: number;
   onNavigateToTab?: (tab: string) => void;
+  businessName?: string;
+  industryName?: string;
+  industryId?: string;
 }
 
 export const ChatbotView: React.FC<ChatbotViewProps> = ({
   simulationResult,
   cashFloor,
   supplierDelayDays,
+  onNavigateToTab,
+  businessName = 'Your Business',
+  industryName = 'General SME',
+  industryId = 'manufacturing',
 }) => {
   const { theme } = useTheme();
   const isLight = theme === 'light';
@@ -44,34 +54,64 @@ export const ChatbotView: React.FC<ChatbotViewProps> = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const [hasServerKey, setHasServerKey] = useState<boolean | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Extract financial metrics for AI prompt context
-  const currentCash = simulationResult?.dailyPoints?.[0]?.cash || 2500000;
-  const minCash = simulationResult?.minCash || 450000;
-  const earliestBreachDate = simulationResult?.earliestBreachDate || 'Oct 14, 2026';
-  const hasBreach = simulationResult?.hasBreach ?? true;
-  const breachProbability = simulationResult?.breachProbability ?? 84;
-  const dso = simulationResult?.diagnostics?.dso ?? 42;
-  const dio = simulationResult?.diagnostics?.dio ?? 58;
-  const dpo = simulationResult?.diagnostics?.dpo ?? 30;
-  const ccc = simulationResult?.diagnostics?.ccc ?? 70;
+  useEffect(() => {
+    fetch('/api/health')
+      .then((res) => res.json())
+      .then((data) => {
+        const hasKey = !!(data.providers?.groq || data.providers?.gemini || data.providers?.openrouter);
+        setHasServerKey(hasKey);
+      })
+      .catch(() => setHasServerKey(false));
+  }, []);
 
-  // Format currency helper
-  const formatLakhs = (amount: number) => {
-    return `₹${(amount / 100000).toFixed(2)}L`;
-  };
+  const hasLocalKey = !!(
+    localStorage.getItem('gemini_api_key') ||
+    localStorage.getItem('groq_api_key') ||
+    localStorage.getItem('openrouter_api_key')
+  );
+
+  const isAiConfigured = hasLocalKey || !!hasServerKey;
+
+  // Extract financial metrics dynamically from simulationResult
+  const currentCash = simulationResult?.currentCash ?? simulationResult?.dailyPoints?.[0]?.cash ?? 0;
+  const minCash = simulationResult?.minProjectedCash ?? simulationResult?.minCash ?? 0;
+  const earliestBreachDate = simulationResult?.earliestBreachDate || 'None projected';
+  const hasBreach = simulationResult?.hasBreach ?? false;
+  const breachProbability = simulationResult?.breachProbability ?? 0;
+  const dso = simulationResult?.workingCapital?.dso ?? simulationResult?.diagnostics?.dso ?? 0;
+  const dio = simulationResult?.workingCapital?.dio ?? simulationResult?.diagnostics?.dio ?? 0;
+  const dpo = simulationResult?.workingCapital?.dpo ?? simulationResult?.diagnostics?.dpo ?? 0;
+  const ccc = simulationResult?.workingCapital?.ccc ?? simulationResult?.diagnostics?.ccc ?? 0;
+
+  const topOutflow = simulationResult?.driverAnalysis?.topOutflows?.[0]
+    ? `${simulationResult.driverAnalysis.topOutflows[0].entity} (${formatINR(simulationResult.driverAnalysis.topOutflows[0].amount)})`
+    : 'None';
+  const topInflow = simulationResult?.driverAnalysis?.topInflows?.[0]
+    ? `${simulationResult.driverAnalysis.topInflows[0].customer || simulationResult.driverAnalysis.topInflows[0].entity} (${formatINR(simulationResult.driverAnalysis.topInflows[0].amount)})`
+    : 'None';
+  const counterfactuals = simulationResult?.counterfactuals?.length
+    ? simulationResult.counterfactuals.map((cf: any, i: number) => `${i + 1}. ${cf.strategyName} -> Min Cash: ${formatINR(cf.minProjectedCash)} (${cf.hasBreach ? 'Breaches floor' : 'Safe margin'})`).join('\n')
+    : 'None active';
+
+  const formatLakhs = (amount: number) => `₹${(amount / 100000).toFixed(2)}L`;
 
   const verifiedData = {
+    businessName,
+    industryId,
+    industryName,
     currentCash: formatLakhs(currentCash),
     minProjectedCash: formatLakhs(minCash),
     cashFloor: formatLakhs(cashFloor),
     earliestBreachDate,
     supplierDelay: supplierDelayDays,
     breachProbability: `${breachProbability}%`,
-    topOutflow: 'Shakti Electronics Procurement (₹18.0L)',
-    topInflow: 'TechCorp Collection (₹4.2L)',
+    topOutflow,
+    topInflow,
+    counterfactuals,
     dso: `${dso} days`,
     dio: `${dio} days`,
     dpo: `${dpo} days`,
@@ -128,20 +168,31 @@ export const ChatbotView: React.FC<ChatbotViewProps> = ({
       const initialGreeting: Message = {
         id: 'msg-welcome',
         sender: 'ai',
-        text: `Hello! I am your FlowShield AI Financial Advisor. I have analyzed your 90-day liquidity simulation, ERP ledger transactions, and Working Capital metrics.
+        text: isAiConfigured
+          ? `Hello! I'm your **FlowShield AI Financial Advisor** for **${businessName}**.
 
-**Current Financial Context:**
-• **Cleared Cash:** ${formatLakhs(currentCash)}
-• **Cash Floor Threshold:** ${formatLakhs(cashFloor)}
-• **Breach Risk:** ${breachProbability}% probability (Earliest: ${earliestBreachDate})
+**Your Verified Financial Snapshot:**
+• **Current Cash:** ${formatLakhs(currentCash)}
+• **Safety Floor:** ${formatLakhs(cashFloor)}
+• **Breach Risk:** ${breachProbability}% probability
 • **Cash Conversion Cycle (CCC):** ${ccc} days
 
-How can I assist you with your cash flow strategy today?`,
+I can answer questions regarding your liquidity risk, driver analysis, or counterfactual strategies grounded strictly in verified engine numbers. What would you like to explore?`
+          : `**FlowShield AI Chat is currently locked.**
+
+No active AI API key was found in your environment (.env) or Settings. To prevent simulated or ungrounded responses, chat capabilities are restricted until an API key is connected.
+
+**To unlock FlowShield AI:**
+• Navigate to **Settings > Integrations**
+• Provide your **GEMINI_API_KEY**, **GROQ_API_KEY**, or **OPENROUTER_API_KEY**
+• Click **Save Changes**
+
+Once an API key is connected, conversational AI insights grounded in your verified ledger will be unlocked.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages([initialGreeting]);
     }
-  }, []);
+  }, [isAiConfigured]);
 
   const handleSendQuery = async (queryText?: string) => {
     const textToSend = queryText || inputQuery;
@@ -156,13 +207,25 @@ How can I assist you with your cash flow strategy today?`,
 
     setMessages((prev) => [...prev, userMsg]);
     if (!queryText) setInputQuery('');
+
+    // If no active AI key is configured, do not simulate an AI response
+    if (!isAiConfigured) {
+      const disabledMsg: Message = {
+        id: `ai-${Date.now()}`,
+        sender: 'ai',
+        text: 'AI Execution Disabled: No AI API key is configured in your environment (.env) or Settings. FlowShield AI does not simulate responses without an active API key. Please configure GEMINI_API_KEY, GROQ_API_KEY, or OPENROUTER_API_KEY in your .env file or Platform Settings to enable live AI analysis.',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      setMessages((prev) => [...prev, disabledMsg]);
+      return;
+    }
+
     setLoading(true);
 
     try {
       const geminiKey = localStorage.getItem('gemini_api_key') || '';
       const groqKey = localStorage.getItem('groq_api_key') || '';
       const openRouterKey = localStorage.getItem('openrouter_api_key') || '';
-      const storedKey = localStorage.getItem('flowshield_api_key') || '';
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -173,7 +236,6 @@ How can I assist you with your cash flow strategy today?`,
           geminiKey,
           groqKey,
           openRouterKey,
-          apiKey: storedKey,
         }),
       });
 
@@ -252,11 +314,13 @@ How can I assist you with your cash flow strategy today?`,
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold font-mono tracking-tight">FlowShield Financial Intelligence Assistant</h1>
+                <h1 className="text-xl font-bold font-mono tracking-tight">FlowShield AI Chat</h1>
                 <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
-                  isLight ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
+                  isAiConfigured
+                    ? (isLight ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30')
+                    : (isLight ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-amber-500/15 text-amber-300 border-amber-500/30')
                 }`}>
-                  Grounded LLM + Simulation Engine
+                  {isAiConfigured ? 'Live AI Active' : 'API Key Required'}
                 </span>
               </div>
               <p className={`text-xs font-mono mt-0.5 ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
@@ -292,7 +356,7 @@ How can I assist you with your cash flow strategy today?`,
       </div>
 
       {/* Integrate Your AI Keys Banner */}
-      {!localStorage.getItem('flowshield_api_key') && !localStorage.getItem('groq_api_key') && !localStorage.getItem('gemini_api_key') && (
+      {!isAiConfigured && (
         <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
           isLight ? 'bg-amber-50/80 border-amber-200 text-amber-900' : 'bg-amber-500/10 border-amber-500/30 text-amber-200'
         }`}>
@@ -301,9 +365,9 @@ How can I assist you with your cash flow strategy today?`,
               <Bot className="w-4 h-4 text-amber-500" />
             </div>
             <div>
-              <h3 className="text-xs font-bold font-mono">Integrate Your AI API Keys</h3>
+              <h3 className="text-xs font-bold font-mono">AI API Key Required</h3>
               <p className="text-[11px] opacity-90 mt-0.5">
-                Add your Groq or Gemini API key in Platform Settings to unlock live conversational LLM analysis.
+                AI Chat requires an active API key in .env or Settings. Simulated AI responses are disabled without an active API key.
               </p>
             </div>
           </div>
@@ -314,7 +378,7 @@ How can I assist you with your cash flow strategy today?`,
             }}
             className="px-3.5 py-1.5 rounded-lg text-xs font-mono font-bold bg-amber-500 hover:bg-amber-600 text-white transition-colors cursor-pointer shrink-0 shadow-sm"
           >
-            Integrate Keys &rarr;
+            Configure Keys &rarr;
           </button>
         </div>
       )}
@@ -441,6 +505,37 @@ How can I assist you with your cash flow strategy today?`,
             </div>
           )}
 
+          {/* Locked State Card in Feed */}
+          {!isAiConfigured && (
+            <div className={`p-6 rounded-2xl border text-center max-w-md mx-auto my-4 space-y-3 ${
+              isLight ? 'bg-amber-50/60 border-amber-200/80 text-amber-950' : 'bg-zinc-900/60 border-zinc-800 text-zinc-200'
+            }`}>
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-500">
+                <Lock className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold font-mono">Chatbot Locked</h3>
+                <p className={`text-xs mt-1 ${isLight ? 'text-amber-800/80' : 'text-zinc-400'}`}>
+                  To protect financial data integrity and avoid simulated responses, FlowShield AI Chat is restricted until an API key is configured in Settings.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  if (onNavigateToTab) {
+                    onNavigateToTab('settings');
+                  } else {
+                    const settingsBtn = document.querySelector('[data-tab="settings"]') as HTMLElement;
+                    if (settingsBtn) settingsBtn.click();
+                  }
+                }}
+                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-mono text-xs font-bold transition-colors cursor-pointer inline-flex items-center gap-1.5 shadow-sm"
+              >
+                <Key className="w-3.5 h-3.5" />
+                <span>Configure Keys in Settings &rarr;</span>
+              </button>
+            </div>
+          )}
+
           <div ref={messagesEndRef} />
         </div>
 
@@ -448,40 +543,73 @@ How can I assist you with your cash flow strategy today?`,
         <div className={`p-4 border-t ${
           isLight ? 'bg-white border-slate-200' : 'bg-[#0A0A0A] border-[#222222]'
         }`}>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSendQuery();
-            }}
-            className="flex items-center gap-2"
-          >
-            <input
-              type="text"
-              value={inputQuery}
-              onChange={(e) => setInputQuery(e.target.value)}
-              placeholder="Ask FlowShield AI anything about your cash flow, risk drivers, or scenario strategy..."
-              className={`flex-1 border rounded-xl px-4 py-3 text-xs font-sans focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all ${
-                isLight
-                  ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
-                  : 'bg-zinc-900/80 border-zinc-800 text-white placeholder-zinc-500'
-              }`}
-            />
-
-            <button
-              type="submit"
-              disabled={loading || !inputQuery.trim()}
-              className="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-mono text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all shadow-md shadow-indigo-500/20 active:scale-[0.98]"
+          {!isAiConfigured ? (
+            <div className={`p-3.5 rounded-xl border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs ${
+              isLight ? 'bg-slate-100/90 border-slate-200 text-slate-700' : 'bg-zinc-900/90 border-zinc-800 text-zinc-300'
+            }`}>
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0">
+                  <Lock className="w-4 h-4 text-amber-500" />
+                </div>
+                <div>
+                  <div className="font-mono font-bold text-xs">Chatbot Restricted &bull; API Key Required</div>
+                  <div className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
+                    You cannot send messages or use the chatbot without an active API key. Please configure a key in Settings.
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onNavigateToTab) {
+                    onNavigateToTab('settings');
+                  } else {
+                    const settingsBtn = document.querySelector('[data-tab="settings"]') as HTMLElement;
+                    if (settingsBtn) settingsBtn.click();
+                  }
+                }}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-mono text-xs font-bold transition-all shadow-md shadow-indigo-500/20 cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+              >
+                <Key className="w-3.5 h-3.5" />
+                <span>Configure Keys</span>
+              </button>
+            </div>
+          ) : (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSendQuery();
+              }}
+              className="flex items-center gap-2"
             >
-              {loading ? (
-                <Sparkles className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <span>Send</span>
-                  <Send className="w-3.5 h-3.5" />
-                </>
-              )}
-            </button>
-          </form>
+              <input
+                type="text"
+                value={inputQuery}
+                onChange={(e) => setInputQuery(e.target.value)}
+                placeholder="Ask FlowShield AI anything about your cash flow, risk drivers, or scenario strategy..."
+                className={`flex-1 border rounded-xl px-4 py-3 text-xs font-sans focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all ${
+                  isLight
+                    ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
+                    : 'bg-zinc-900/80 border-zinc-800 text-white placeholder-zinc-500'
+                }`}
+              />
+
+              <button
+                type="submit"
+                disabled={loading || !inputQuery.trim()}
+                className="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-mono text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all shadow-md shadow-indigo-500/20 active:scale-[0.98]"
+              >
+                {loading ? (
+                  <Sparkles className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <span>Send</span>
+                    <Send className="w-3.5 h-3.5" />
+                  </>
+                )}
+              </button>
+            </form>
+          )}
         </div>
       </div>
     </div>

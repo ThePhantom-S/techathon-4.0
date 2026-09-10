@@ -402,21 +402,17 @@ export const WhatIfSimulator: React.FC<WhatIfSimulatorProps> = ({
       />
 
       {/* ── HEADER ──────────────────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white shadow-lg shadow-amber-500/25">
-              <Zap className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className={`text-2xl font-semibold tracking-tight ${textPrimary}`}>
-                Decision Impact Analysis
-              </h1>
-              <p className={`text-xs mt-0.5 ${textSecondary}`}>
-                Test business decisions before making them in the real world.
-              </p>
-            </div>
-          </div>
+          <h2 className={`text-xl font-bold tracking-tight flex items-center gap-2 ${
+            isLight ? 'text-slate-900' : 'text-white'
+          }`}>
+            <Zap className="w-5 h-5 text-amber-500" />
+            FlowShield — Decision Impact Analysis
+          </h2>
+          <p className={`text-xs mt-0.5 ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
+            Test business decisions before making them in the real world.
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button

@@ -7,6 +7,7 @@ import {
   Eye,
   EyeOff,
   Building2,
+  Factory,
   ArrowRight,
   Sparkles,
   TrendingUp,
@@ -157,11 +158,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onSwitchDemo }) =
               >
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-lg bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
-                    <Building2 className="w-4 h-4" />
+                    <Factory className="w-4 h-4" />
                   </div>
                   <div>
                     <div className="text-xs font-semibold font-sans group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                      🏭 Shakti Electronics
+                      Shakti Electronics
                     </div>
                     <div className={`text-[10px] font-mono ${isLight ? 'text-slate-600' : 'text-zinc-400'}`}>
                       Manufacturing · Synthetic demo

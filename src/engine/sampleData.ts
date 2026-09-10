@@ -44,6 +44,24 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     collection_probability: 1.0,
     status: 'PENDING',
   },
+  {
+    id: 'tx-105',
+    date: '2026-12-10',
+    customer: 'TechCorp Industries (Phase 2 Delivery)',
+    invoice_amount: 1400000, // ₹14.0L
+    expected_payment_date: '2026-12-10',
+    collection_probability: 0.95,
+    status: 'PENDING',
+  },
+  {
+    id: 'tx-106',
+    date: '2026-12-22',
+    customer: 'Bharat Heavy Electricals Consortium',
+    invoice_amount: 1600000, // ₹16.0L
+    expected_payment_date: '2026-12-22',
+    collection_probability: 0.90,
+    status: 'PENDING',
+  },
 ];
 
 export const INITIAL_PAYABLES: Payable[] = [
@@ -87,6 +105,30 @@ export const INITIAL_PAYABLES: Payable[] = [
     category: 'Facility Rent',
     status: 'DUE',
   },
+  {
+    id: 'pay-206',
+    supplier: 'Industrial Rent Corp',
+    amount: 180000, // ₹1.8L monthly rent
+    due_date: '2026-12-01',
+    category: 'Facility Rent',
+    status: 'DUE',
+  },
+  {
+    id: 'pay-207',
+    supplier: 'Silico Tech Materials',
+    amount: 520000, // ₹5.2L semiconductor components
+    due_date: '2026-12-12',
+    category: 'Raw Material',
+    status: 'DUE',
+  },
+  {
+    id: 'pay-208',
+    supplier: 'Apex Logistics Services',
+    amount: 210000, // ₹2.1L shipping & dispatch
+    due_date: '2026-12-18',
+    category: 'Freight & Shipping',
+    status: 'DUE',
+  },
 ];
 
 export const INITIAL_EXPENSES: Expense[] = [
@@ -94,6 +136,8 @@ export const INITIAL_EXPENSES: Expense[] = [
   { id: 'exp-2', date: '2026-10-25', category: 'Factory Operations', amount: 80000 },
   { id: 'exp-3', date: '2026-11-05', category: 'Operational Staff Payroll', amount: 220000 },
   { id: 'exp-4', date: '2026-11-25', category: 'Factory Operations', amount: 80000 },
+  { id: 'exp-5', date: '2026-12-05', category: 'Operational Staff Payroll', amount: 220000 },
+  { id: 'exp-6', date: '2026-12-25', category: 'Factory Operations', amount: 80000 },
 ];
 
 export const INITIAL_INVENTORY: InventoryItem[] = [

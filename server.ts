@@ -70,12 +70,15 @@ async function startServer() {
     return typeof k === 'string' && k.trim().length > 0 && !k.trim().startsWith('your_');
   };
 
+  const stripEmojis = (str: string): string => {
+    return str.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E6}-\u{1F1FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}]/gu, '').trim();
+  };
+
   interface AiExecutionParams {
     prompt: string;
     geminiKey?: string;
     groqKey?: string;
     openRouterKey?: string;
-    apiKey?: string;
   }
 
   const executeAiProviderCall = async (params: AiExecutionParams): Promise<{
@@ -86,20 +89,6 @@ async function startServer() {
     let gKey = isValidApiKey(params.groqKey) ? params.groqKey!.trim() : '';
     let gemKey = isValidApiKey(params.geminiKey) ? params.geminiKey!.trim() : '';
     let orKey = isValidApiKey(params.openRouterKey) ? params.openRouterKey!.trim() : '';
-
-    // Fallback to generic apiKey if supplied
-    if (isValidApiKey(params.apiKey)) {
-      const raw = params.apiKey!.trim();
-      if (raw.startsWith('AIza')) {
-        if (!gemKey) gemKey = raw;
-      } else if (raw.startsWith('gsk_')) {
-        if (!gKey) gKey = raw;
-      } else if (raw.startsWith('sk-or-')) {
-        if (!orKey) orKey = raw;
-      } else if (!gKey && !gemKey && !orKey) {
-        gemKey = raw;
-      }
-    }
 
     // Fallback to process.env
     if (!gKey && isValidApiKey(process.env.GROQ_API_KEY)) gKey = process.env.GROQ_API_KEY!.trim();
@@ -178,7 +167,7 @@ async function startServer() {
           });
           const groqData: any = await groqRes.json();
           if (groqData.choices?.[0]?.message?.content) {
-            return { text: groqData.choices[0].message.content, noApiKey: false };
+            return { text: stripEmojis(groqData.choices[0].message.content), noApiKey: false };
           }
 
           if (groqData.error?.code === 'invalid_api_key' || groqData.error?.message?.toLowerCase().includes('invalid api key')) {
@@ -225,7 +214,7 @@ async function startServer() {
           const geminiData: any = await geminiRes.json();
           const candText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
           if (candText) {
-            return { text: candText, noApiKey: false };
+            return { text: stripEmojis(candText), noApiKey: false };
           }
 
           if (geminiData.error?.status === 'INVALID_ARGUMENT' && geminiData.error?.message?.includes('API key not valid')) {
@@ -270,7 +259,7 @@ async function startServer() {
           });
           const orData: any = await orRes.json();
           if (orData.choices?.[0]?.message?.content) {
-            return { text: orData.choices[0].message.content, noApiKey: false };
+            return { text: stripEmojis(orData.choices[0].message.content), noApiKey: false };
           }
 
           if (orData.error?.code === 401 || orData.error?.message?.toLowerCase().includes('user key')) {
@@ -1597,7 +1586,7 @@ async function startServer() {
 
   app.post('/api/explain', async (req, res) => {
     try {
-      const { query, verifiedData, history, geminiKey, groqKey, openRouterKey, apiKey } = req.body;
+      const { query, verifiedData, history, geminiKey, groqKey, openRouterKey } = req.body;
 
       const historyFormatted = Array.isArray(history) && history.length > 0
         ? history.slice(-4).map((m: any) => `${(m.role || m.sender || 'user').toUpperCase()}: ${m.content || m.text}`).join('\n')
@@ -1606,29 +1595,30 @@ async function startServer() {
       const industryContext = await buildIndustryContext();
 
       const prompt = `
-You are the AI Financial Advisor & Explanation Engine for FlowShield (CashShock) — an SME Cash Flow & Liquidity Intelligence Platform.
+You are the AI Financial Advisor & Explanation Engine for FlowShield — an SME Cash Flow & Liquidity Intelligence Platform.
+CRITICAL RULE: Strictly ZERO emojis. Never output any emojis or emoji-like symbols anywhere in your response.
 CRITICAL RULE: You MUST NOT invent or calculate any financial numbers independently. You MUST ONLY use the verified deterministic engine results provided below.
+CRITICAL RULE: If the user query is a greeting or pleasantry (e.g. "hi", "hello", "hey"), respond with a friendly, brief professional greeting offering assistance (e.g. "Hello! How can I assist you with your cash flow and financial health today?"). Do NOT dump unsolicited numbers or counterfactual strategies for greetings.
 
 ${industryContext}
-USER QUERY: "${query || 'Why is my cash falling?'}"
+USER QUERY: "${query || 'What is the current liquidity situation?'}"
 
 RECENT CHAT HISTORY:
 ${historyFormatted}
 
 VERIFIED ENGINE SIMULATION & LEDGER CALCULATIONS:
-- Current Cleared Cash: ${verifiedData?.currentCash || '₹25.00L'}
-- Minimum Projected Cash: ${verifiedData?.minProjectedCash || '₹4.50L'}
-- Cash Floor Threshold: ${verifiedData?.cashFloor || '₹5.00L'}
-- Breach Probability: ${verifiedData?.breachProbability || '84%'}
-- Earliest Breach Date: ${verifiedData?.earliestBreachDate || 'Oct 14, 2026'}
-- Supplier Lead-Time Delay Shock: +${verifiedData?.supplierDelay || 20} Days
-- Working Capital Diagnostics: DSO=${verifiedData?.dso || '42 days'}, DIO=${verifiedData?.dio || '58 days'}, DPO=${verifiedData?.dpo || '30 days'}, CCC=${verifiedData?.ccc || '70 days'}
-- Top Outflow Driver: ${verifiedData?.topOutflow || 'Shakti Electronics Procurement (₹18.0L)'}
-- Top Inflow Driver: ${verifiedData?.topInflow || 'TechCorp Collection (₹4.2L)'}
+- Business: ${verifiedData?.businessName || 'Business'} (${verifiedData?.industryName || 'General'})
+- Current Cleared Cash: ${verifiedData?.currentCash || 'N/A'}
+- Minimum Projected Cash: ${verifiedData?.minProjectedCash || 'N/A'}
+- Cash Floor Threshold: ${verifiedData?.cashFloor || 'N/A'}
+- Breach Probability: ${verifiedData?.breachProbability || 'N/A'}
+- Earliest Breach Date: ${verifiedData?.earliestBreachDate || 'None'}
+- Supplier Lead-Time Delay Shock: +${verifiedData?.supplierDelay ?? 0} Days
+- Working Capital Diagnostics: DSO=${verifiedData?.dso || 'N/A'}, DIO=${verifiedData?.dio || 'N/A'}, DPO=${verifiedData?.dpo || 'N/A'}, CCC=${verifiedData?.ccc || 'N/A'}
+- Top Outflow Driver: ${verifiedData?.topOutflow || 'None'}
+- Top Inflow Driver: ${verifiedData?.topInflow || 'None'}
 - Counterfactual Strategy Outcomes:
-  1. 20% Procurement Reduction -> Min Cash: ₹3.2L (Still breaches floor)
-  2. 15-Day Term Extension -> Min Cash: ₹4.8L (Marginal breach)
-  3. 30% Customer Advance -> Min Cash: ₹6.5L (Safe liquidity margin)
+${verifiedData?.counterfactuals || 'None calculated'}
 
 Provide a helpful, precise, 2-4 sentence executive financial advisor answer to the user's query. Ground your explanation directly in the verified engine numbers above.
 `;
@@ -1638,13 +1628,12 @@ Provide a helpful, precise, 2-4 sentence executive financial advisor answer to t
         geminiKey,
         groqKey,
         openRouterKey,
-        apiKey,
       });
 
       if (aiResult.text) {
         return res.json({
           explanation: aiResult.text,
-          recommendedAction: 'Negotiate a 30% customer advance or extend supplier payment terms by 15 days to bridge the gap.',
+          recommendedAction: verifiedData?.recommendedAction || undefined,
         });
       }
 
@@ -2219,7 +2208,7 @@ Find 3-5 real anomalies. Focus on: overdue invoices, concentration risk (single 
   // ── AI CHAT ENDPOINT (Redesigned conversational AI) ──────────────────────
   app.post('/api/ai/chat', async (req, res) => {
     try {
-      const { message, verifiedData, history, geminiKey, groqKey, openRouterKey, apiKey } = req.body;
+      const { message, verifiedData, history, geminiKey, groqKey, openRouterKey } = req.body;
 
       const historyFormatted = Array.isArray(history) && history.length > 0
         ? history.slice(-6).map((m: any) => `${(m.role || m.sender || 'user') === 'user' ? 'User' : 'AI'}: ${m.content || m.text}`).join('\n')
@@ -2237,23 +2226,24 @@ ${historyFormatted}
 USER MESSAGE: "${message || 'Hello'}"
 
 VERIFIED FINANCIAL DATA:
-- Current Cash: ${verifiedData?.currentCash || '₹25.00L'}
-- Min Projected Cash: ${verifiedData?.minProjectedCash || '₹4.50L'}
-- Cash Floor: ${verifiedData?.cashFloor || '₹5.00L'}
-- Breach Probability: ${verifiedData?.breachProbability || '84%'}
-- Earliest Breach Date: ${verifiedData?.earliestBreachDate || 'Oct 14, 2026'}
-- DSO: ${verifiedData?.dso || '42 days'}, DIO: ${verifiedData?.dio || '58 days'}, DPO: ${verifiedData?.dpo || '30 days'}, CCC: ${verifiedData?.ccc || '70 days'}
-- Supplier Delay: +${verifiedData?.supplierDelay || 20} days
-- Top Outflow: ${verifiedData?.topOutflow || 'Shakti Electronics Procurement (₹18.0L)'}
-- Top Inflow: ${verifiedData?.topInflow || 'TechCorp Collection (₹4.2L)'}
+- Business: ${verifiedData?.businessName || 'Business'} (${verifiedData?.industryName || 'General'})
+- Current Cash: ${verifiedData?.currentCash || 'N/A'}
+- Min Projected Cash: ${verifiedData?.minProjectedCash || 'N/A'}
+- Cash Floor: ${verifiedData?.cashFloor || 'N/A'}
+- Breach Probability: ${verifiedData?.breachProbability || 'N/A'}
+- Earliest Breach Date: ${verifiedData?.earliestBreachDate || 'None'}
+- Working Capital Diagnostics: DSO=${verifiedData?.dso || 'N/A'}, DIO=${verifiedData?.dio || 'N/A'}, DPO=${verifiedData?.dpo || 'N/A'}, CCC=${verifiedData?.ccc || 'N/A'}
+- Supplier Delay: +${verifiedData?.supplierDelay ?? 0} days
+- Top Outflow: ${verifiedData?.topOutflow || 'None'}
+- Top Inflow: ${verifiedData?.topInflow || 'None'}
 - Counterfactual Strategies:
-  1. 20% Procurement Reduction → Min Cash: ₹3.2L (breaches floor)
-  2. 15-Day Term Extension → Min Cash: ₹4.8L (marginal)
-  3. 30% Customer Advance → Min Cash: ₹13.5L (safe, 0% breach probability)
+${verifiedData?.counterfactuals || 'None calculated'}
 
 RULES:
+- CRITICAL: Strictly ZERO emojis. Never output any emojis or emoji-like symbols anywhere in your response.
+- CRITICAL: If the user message is a greeting or pleasantry (such as "hi", "hello", "hey", "good morning", "how are you"), respond ONLY with a brief, professional greeting offering assistance (e.g. "Hello! How can I assist you with your business cash flow or scenario planning today?"). Do NOT provide unprompted analysis or dump counterfactual strategies for simple greetings.
 - Only use verified numbers above. Never invent financial data.
-- Be concise: 2-4 sentences maximum.
+- When answering financial questions, be concise: 2-4 sentences maximum.
 - Always ground advice in specific numbers.
 - Use bold **text** for key numbers and recommendations.
 `;
@@ -2263,19 +2253,20 @@ RULES:
         geminiKey,
         groqKey,
         openRouterKey,
-        apiKey,
       });
 
       if (aiResult.text) {
         return res.json({
           explanation: aiResult.text,
-          recommendedAction: 'Negotiate a 30% customer advance or extend supplier payment terms by 15 days to bridge the gap.',
+          recommendedAction: verifiedData?.recommendedAction || undefined,
         });
       }
 
       return res.json({
         noApiKey: aiResult.noApiKey,
-        explanation: aiResult.error || 'AI Provider Request Failed: The configured API key was rejected or timed out. Please verify your API key in Settings.',
+        explanation: aiResult.noApiKey
+          ? 'AI API Key Required: No AI API key is configured in your environment (.env) or Settings. AI Chat does not simulate responses without an active API key. Please configure GEMINI_API_KEY, GROQ_API_KEY, or OPENROUTER_API_KEY in .env or Settings to chat.'
+          : (aiResult.error || 'AI Provider Request Failed: The configured API key was rejected or timed out. Please verify your API key in Settings.'),
         recommendedAction: null,
       });
     } catch (err: any) {

@@ -1,7 +1,7 @@
 import React from 'react';
 import { DriverAnalysisResult } from '../types';
 import { formatINR } from '../engine/calculator';
-import { ArrowDownRight, ArrowUpRight, Calendar, Sparkles, ArrowLeft } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Calendar, Sparkles, ArrowLeft, TrendingDown } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
 interface DriverAnalysisViewProps {
@@ -45,10 +45,13 @@ export const DriverAnalysisView: React.FC<DriverAnalysisViewProps> = ({
             </button>
           )}
           <div>
-            <h1 className={`text-2xl font-semibold tracking-tight ${isLight ? 'text-[#171717]' : 'text-[#EDEDED]'}`}>
-              Cash Breach Driver Analysis
-            </h1>
-            <p className={`text-xs mt-1 ${isLight ? 'text-[#666666]' : 'text-[#A1A1AA]'}`}>
+            <h2 className={`text-xl font-bold tracking-tight flex items-center gap-2 ${
+              isLight ? 'text-slate-900' : 'text-white'
+            }`}>
+              <TrendingDown className="w-5 h-5 text-indigo-500" />
+              FlowShield — Cash Breach Driver Analysis
+            </h2>
+            <p className={`text-xs mt-0.5 ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
               Root cause decomposition for projected liquidity shortfall.
             </p>
           </div>

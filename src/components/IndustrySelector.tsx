@@ -4,6 +4,7 @@ import { INDUSTRY_OPTIONS } from '../config/industries';
 import { IndustryId } from '../types';
 import { useBusinessProfile } from '../context/BusinessProfileContext';
 import { useTheme } from '../context/ThemeContext';
+import { IndustryIcon } from './IndustryIcon';
 
 /**
  * IndustrySelector — used in two modes:
@@ -116,10 +117,10 @@ export const IndustrySelector: React.FC<{
         <div className={`p-3.5 rounded-xl border flex items-center gap-3 ${
           isLight ? 'bg-slate-50 border-slate-200' : 'bg-zinc-900/60 border-zinc-800'
         }`}>
-          <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-lg shrink-0 ${
+          <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
             isLight ? 'bg-indigo-50 border border-indigo-200' : 'bg-indigo-500/15 border border-indigo-500/30'
           }`}>
-            {industryProfile.icon}
+            <IndustryIcon icon={industryProfile.icon} className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
           </div>
           <div className="min-w-0 flex-1">
             <div className={`text-sm font-semibold truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>
@@ -144,7 +145,11 @@ export const IndustrySelector: React.FC<{
         {INDUSTRY_OPTIONS.map((opt) => (
           <button key={opt.id} onClick={() => setSelectedId(opt.id)} className={cardClass(opt.id)}>
             <div className="flex items-start gap-2.5">
-              <span className="text-xl leading-none">{opt.icon}</span>
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                isLight ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' : 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/25'
+              }`}>
+                <IndustryIcon icon={opt.icon} className="w-4 h-4" />
+              </div>
               <div className="min-w-0 flex-1">
                 <div className={`text-xs font-semibold ${isLight ? 'text-slate-900' : 'text-white'}`}>
                   {opt.name}
@@ -227,7 +232,10 @@ export const IndustrySelector: React.FC<{
                         : 'bg-[#0A0A0A] border-zinc-800 text-zinc-300 hover:border-indigo-500/40'
                   }`}
                 >
-                  {opt.icon} {opt.name}
+                  <span className="inline-flex items-center gap-1.5">
+                    <IndustryIcon icon={opt.icon} className="w-3 h-3 shrink-0" />
+                    <span>{opt.name}</span>
+                  </span>
                 </button>
               );
             })}

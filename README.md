@@ -180,12 +180,12 @@ DB_NAME=cashshock_db
 # WhatsApp Cloud API (optional — enables Liquidity Alert & Briefing)
 # The access token is a SECRET — it is read server-side only and is never
 # exposed to the browser, logged, stored in the DB, or committed to Git.
-WHATSAPP_ACCESS_TOKEN=your_whatsapp_access_token
-WHATSAPP_PHONE_NUMBER_ID=1281259995072776
-WHATSAPP_BUSINESS_ACCOUNT_ID=1065939626408167
+WHATSAPP_ACCESS_TOKEN=your_whatsapp_access_token_here
+WHATSAPP_PHONE_NUMBER_ID=your_whatsapp_phone_number_id_here
+WHATSAPP_BUSINESS_ACCOUNT_ID=your_whatsapp_business_account_id_here
 WHATSAPP_API_VERSION=v21.0
-WHATSAPP_RECIPIENT_PHONE=7200905774
-WHATSAPP_ENABLED=true
+WHATSAPP_RECIPIENT_PHONE=your_whatsapp_recipient_phone_here
+WHATSAPP_ENABLED=false
 ```
 
 ### 4. Start PostgreSQL Database via Docker
