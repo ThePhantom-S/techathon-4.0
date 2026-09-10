@@ -34,6 +34,8 @@ interface ChatbotModalProps {
   simulationResult: any;
   cashFloor: number;
   supplierDelayDays: number;
+  industryName?: string;
+  industryId?: string;
 }
 
 export const ChatbotModal: React.FC<ChatbotModalProps> = ({
@@ -42,6 +44,8 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
   simulationResult,
   cashFloor,
   supplierDelayDays,
+  industryName,
+  industryId,
 }) => {
   const { theme } = useTheme();
   const isLight = theme === 'light';
@@ -78,12 +82,14 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
     earliestBreachDate,
     supplierDelay: supplierDelayDays,
     breachProbability: `${breachProbability}%`,
-    topOutflow: 'Shakti Electronics Procurement (₹18.0L)',
-    topInflow: 'TechCorp Collection (₹4.2L)',
+    topOutflow: 'Largest payable commitment',
+    topInflow: 'Largest expected collection',
     dso: `${dso} days`,
     dio: `${dio} days`,
     dpo: `${dpo} days`,
     ccc: `${ccc} days`,
+    industryId,
+    industryName,
   };
 
   // Scroll to bottom when messages update

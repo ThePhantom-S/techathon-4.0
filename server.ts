@@ -4,7 +4,20 @@ import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
-import { initDb, getFinancials, updateConfiguration, saveConnectedPlatformData, resetToBaseline, logWhatsAppNotification, getRecentWhatsAppNotifications } from './src/db/index';
+import {
+  initDb,
+  getFinancials,
+  updateConfiguration,
+  saveConnectedPlatformData,
+  resetToBaseline,
+  logWhatsAppNotification,
+  getRecentWhatsAppNotifications,
+  getBusinessProfile,
+  saveBusinessProfile,
+  setBusinessIndustry,
+  switchDemoBusiness,
+  dbQuery,
+} from './src/db/index';
 import {
   sendLiquidityAlert,
   sendTestMessage,
@@ -20,6 +33,10 @@ import {
 } from './src/db/connectorState';
 import { runSimulationEngine, formatINR } from './src/engine/calculator';
 import { demoInventory, demoSuppliers, demoSales } from './src/engine/sampleData';
+import { INDUSTRY_OPTIONS, INDUSTRY_PROFILES, getIndustryProfile, isValidIndustryId } from './src/config/industries';
+import { runSafeToCommitAnalysis } from './src/engine/safeToCommit';
+import { detectSignals } from './src/engine/signals';
+import { getIndustryDemoProfile } from './src/engine/demoProfiles';
 
 dotenv.config();
 
@@ -1123,6 +1140,161 @@ async function startServer() {
     }
   });
 
+  // ── INDUSTRY-AWARE BUSINESS MODEL (API) ───────────────────────────────────
+
+  // GET /api/business/profile — selected business + industry (single source of truth)
+  app.get('/api/business/profile', async (req, res) => {
+    try {
+      const profile = await getBusinessProfile();
+      res.json({ profile });
+    } catch (e: any) {
+      res.status(500).json({ error: 'Failed to load business profile', detail: e.message });
+    }
+  });
+
+  // POST /api/business/profile — update business profile (industry change preserves ledger)
+  app.post('/api/business/profile', async (req, res) => {
+    try {
+      const { businessName, industryId, currency, country, cashFloor } = req.body;
+      if (industryId !== undefined && !isValidIndustryId(industryId)) {
+        return res.status(400).json({ error: `Unknown industry: ${industryId}` });
+      }
+      const profile = await saveBusinessProfile({
+        businessName,
+        industryId,
+        currency,
+        country,
+        cashFloor: cashFloor !== undefined ? Number(cashFloor) : undefined,
+      });
+      res.json({ profile, message: 'Business profile updated. Underlying financial records remain unchanged.' });
+    } catch (e: any) {
+      res.status(500).json({ error: 'Failed to save business profile', detail: e.message });
+    }
+  });
+
+  // GET /api/industries — lightweight options for onboarding / switcher
+  app.get('/api/industries', (req, res) => {
+    res.json({ industries: INDUSTRY_OPTIONS });
+  });
+
+  // GET /api/industries/:industryId — full industry profile
+  app.get('/api/industries/:industryId', (req, res) => {
+    const { industryId } = req.params;
+    if (!isValidIndustryId(industryId)) {
+      return res.status(404).json({ error: `Unknown industry: ${industryId}` });
+    }
+    res.json({ industry: INDUSTRY_PROFILES[industryId] });
+  });
+
+  // POST /api/business/switch-demo — load an industry demo dataset (clearly synthetic)
+  app.post('/api/business/switch-demo', async (req, res) => {
+    try {
+      const { industryId } = req.body;
+      if (!isValidIndustryId(industryId)) {
+        return res.status(400).json({ error: `Unknown industry: ${industryId}` });
+      }
+      const demo = getIndustryDemoProfile(industryId);
+      if (!demo) {
+        return res.status(400).json({
+          error: `No demo dataset exists for ${industryId}. Select Manufacturing for the Shakti Electronics demo.`,
+        });
+      }
+      const result = await switchDemoBusiness(industryId);
+      if (!result) {
+        return res.status(400).json({ error: 'Failed to switch demo business.' });
+      }
+      const financials = await getFinancials();
+      res.json({
+        success: true,
+        profile: result.profile,
+        currentCash: financials.config.current_cash,
+        transactions: financials.transactions,
+        payables: financials.payables,
+        expenses: financials.expenses,
+        message: `${result.demo.businessName} demo loaded (${result.demo.industryId}). Synthetic data — not real company records.`,
+      });
+    } catch (e: any) {
+      console.error('switch-demo error:', e);
+      res.status(500).json({ error: 'Failed to switch demo business', detail: e.message });
+    }
+  });
+
+  // POST /api/safe-to-commit — flagship decision check (engine computed)
+  app.post('/api/safe-to-commit', async (req, res) => {
+    try {
+      const { commitmentAmount, commitmentLabel, industryId } = req.body;
+      const financials = await getFinancials();
+      const profile = await getBusinessProfile();
+      const effIndustry = isValidIndustryId(industryId) ? industryId : profile.industryId;
+      const amount = Math.max(0, Number(commitmentAmount || 0));
+      const result = runSafeToCommitAnalysis({
+        config: financials.config,
+        transactions: financials.transactions,
+        payables: financials.payables,
+        expenses: financials.expenses,
+        inventory: demoInventory,
+        suppliers: demoSuppliers,
+        historicalSales: demoSales,
+        commitmentAmount: amount,
+        commitmentLabel: commitmentLabel || getIndustryProfile(effIndustry).safeToCommit.entityLabel,
+        industryId: effIndustry,
+      });
+      res.json({
+        result,
+        industry: effIndustry,
+        question: getIndustryProfile(effIndustry).safeToCommit.questionTemplate
+          .replace('{amount}', formatINR(amount))
+          .replace('{entity}', getIndustryProfile(effIndustry).safeToCommit.entityLabel),
+      });
+    } catch (e: any) {
+      console.error('safe-to-commit error:', e);
+      res.status(500).json({ error: 'Failed to run safe-to-commit analysis', detail: e.message });
+    }
+  });
+
+  // POST /api/decisions/approve — audit a Safe-to-Commit decision (industry-aware, engine-verified)
+  app.post('/api/decisions/approve', async (req, res) => {
+    try {
+      const { decisionType, amount, verdict, expectedMinCash, cashImpact, liquidityRisk, breachDate, recommendedAction } = req.body;
+      const profile = await getBusinessProfile();
+      const details = `Industry: ${profile.industryId} | Decision: ${decisionType || 'commitment'} | Amount: ${formatINR(Number(amount) || 0)} | Verdict: ${verdict} | Expected Min Cash: ${formatINR(Number(expectedMinCash) || 0)} | Cash Impact: ${formatINR(Number(cashImpact) || 0)} | Liquidity Risk: ${Math.round((Number(liquidityRisk) || 0) * 100)}% | Breach Date: ${breachDate || 'None'} | Recommended: ${recommendedAction || 'n/a'}`;
+      await dbQuery(`
+        INSERT INTO audit_logs (action, details)
+        VALUES ('SAFE_TO_COMMIT', $1)
+      `, [details]);
+      res.json({ success: true, message: 'Safe-to-Commit decision recorded in audit history.' });
+    } catch (e: any) {
+      console.error('decision approve error:', e);
+      res.status(500).json({ error: 'Failed to record decision', detail: e.message });
+    }
+  });
+
+  // GET /api/signals — deterministic industry-aware financial signals from engine output
+  app.get('/api/signals', async (req, res) => {
+    try {
+      const financials = await getFinancials();
+      const profile = await getBusinessProfile();
+      const simulation = runSimulationEngine(
+        financials.config,
+        financials.transactions,
+        financials.payables,
+        financials.expenses,
+        demoInventory,
+        demoSuppliers,
+        demoSales
+      );
+      const signals = detectSignals({
+        industryId: profile.industryId,
+        simulation,
+        financials,
+      });
+      res.json({ signals, industryId: profile.industryId, industryName: getIndustryProfile(profile.industryId).name });
+    } catch (e: any) {
+      console.error('signals error:', e);
+      res.status(500).json({ error: 'Failed to detect financial signals', detail: e.message });
+    }
+  });
+
   // REST API: GET /api/business/summary — Computed from DB + simulation engine
   app.get('/api/business/summary', async (req, res) => {
     try {
@@ -1410,6 +1582,19 @@ async function startServer() {
   });
 
   // AI Explanation & Chatbot Endpoint (SRS FR-14 & FR-10)
+  // Builds the industry context block injected into every AI prompt.
+  // The industry comes from the server-side business profile (source of truth),
+  // never from client input, and it only changes terminology — never numbers.
+  const buildIndustryContext = async () => {
+    try {
+      const profile = await getBusinessProfile();
+      const industry = getIndustryProfile(profile.industryId);
+      return `Business industry: ${industry.name}\nBusiness context: ${industry.aiContext}\n`;
+    } catch {
+      return `Business industry: Manufacturing\nBusiness context: ${getIndustryProfile('manufacturing').aiContext}\n`;
+    }
+  };
+
   app.post('/api/explain', async (req, res) => {
     try {
       const { query, verifiedData, history, geminiKey, groqKey, openRouterKey, apiKey } = req.body;
@@ -1418,10 +1603,13 @@ async function startServer() {
         ? history.slice(-4).map((m: any) => `${(m.role || m.sender || 'user').toUpperCase()}: ${m.content || m.text}`).join('\n')
         : 'None';
 
+      const industryContext = await buildIndustryContext();
+
       const prompt = `
 You are the AI Financial Advisor & Explanation Engine for FlowShield (CashShock) — an SME Cash Flow & Liquidity Intelligence Platform.
 CRITICAL RULE: You MUST NOT invent or calculate any financial numbers independently. You MUST ONLY use the verified deterministic engine results provided below.
 
+${industryContext}
 USER QUERY: "${query || 'Why is my cash falling?'}"
 
 RECENT CHAT HISTORY:
@@ -1479,10 +1667,13 @@ Provide a helpful, precise, 2-4 sentence executive financial advisor answer to t
     try {
       const { verifiedData, horizon } = req.body;
 
+      const industryContext = await buildIndustryContext();
+
       const prompt = `
 You are FlowShield AI, a senior financial analyst AI for SME cash flow intelligence.
 Generate a concise executive briefing for the ${horizon || '7-day'} liquidity forecast.
 
+${industryContext}
 VERIFIED FINANCIAL DATA:
 - Current Cash: ${verifiedData?.currentCash || '₹25.00L'}
 - Min Projected Cash: ${verifiedData?.minProjectedCash || '₹4.50L'}
@@ -1588,6 +1779,8 @@ Respond in this EXACT JSON format (no markdown, no code fences):
     try {
       const { transactions, payables, verifiedData } = req.body;
 
+      const industryContext = await buildIndustryContext();
+
       const txSummary = (transactions || []).slice(0, 20).map((t: any) =>
         `${t.customer}: ₹${(t.invoice_amount / 100000).toFixed(2)}L (${t.status}, due ${t.expected_payment_date})`
       ).join('\n');
@@ -1598,8 +1791,9 @@ Respond in this EXACT JSON format (no markdown, no code fences):
 
       const prompt = `
 You are FlowShield AI Anomaly Scanner. Analyze these SME financial transactions and payables for anomalies, risks, and suspicious patterns.
+Use the business industry to frame signals with correct terminology (e.g. inventory for manufacturing, subscriptions/churn for SaaS).
 
-TRANSACTIONS (Receivables):
+${industryContext}TRANSACTIONS (Receivables):
 ${txSummary || 'No transactions loaded'}
 
 PAYABLES (Bills):
@@ -1766,8 +1960,12 @@ Find 3-5 real anomalies. Focus on: overdue invoices, concentration risk (single 
       };
     }
 
+    const profile = await getBusinessProfile();
+    const industry = getIndustryProfile(profile.industryId);
+
     const payload = {
-      businessName: 'Shakti Electronics',
+      businessName: profile.businessName,
+      industry: industry.name,
       currentCash: config.current_cash,
       safetyFloor: config.cash_floor,
       forecast30Day: horizon30?.expectedCash,
@@ -2027,10 +2225,13 @@ Find 3-5 real anomalies. Focus on: overdue invoices, concentration risk (single 
         ? history.slice(-6).map((m: any) => `${(m.role || m.sender || 'user') === 'user' ? 'User' : 'AI'}: ${m.content || m.text}`).join('\n')
         : 'None';
 
+      const industryContext = await buildIndustryContext();
+
       const prompt = `
 You are FlowShield AI — a senior financial advisor AI for SME cash flow intelligence. You provide precise, actionable financial advice grounded in verified simulation data.
+Use the business industry to frame advice with correct terminology (e.g. raw materials for manufacturing, subscriptions/churn for SaaS).
 
-CONVERSATION HISTORY:
+${industryContext}CONVERSATION HISTORY:
 ${historyFormatted}
 
 USER MESSAGE: "${message || 'Hello'}"

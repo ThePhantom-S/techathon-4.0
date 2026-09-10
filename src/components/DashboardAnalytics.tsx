@@ -13,7 +13,7 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { ArrowUpRight, ArrowDownRight, ShieldCheck, Send, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 import { sendWhatsAppLiquidityBrief } from './LiquidityNotifications';
-import { SimulationResult } from '../types';
+import { IndustryProfile, SimulationResult } from '../types';
 import { formatINR } from '../engine/calculator';
 import { WorkingCapitalPanel } from './WorkingCapitalPanel';
 import { BreachProbabilityGauge } from './BreachProbabilityGauge';
@@ -21,6 +21,7 @@ import { HorizonCards } from './HorizonCards';
 import { Skeleton } from './ui/Skeleton';
 import { FinancialTimeMachine } from './FinancialTimeMachine';
 import { AiInsightsPanel } from './AiInsightsPanel';
+import { IndustryKPICards } from './IndustryKPICards';
 
 interface DashboardAnalyticsProps {
   simulationResult: SimulationResult;
@@ -28,6 +29,8 @@ interface DashboardAnalyticsProps {
   isLoading?: boolean;
   activeSubTab?: string;
   supplierDelayDays?: number;
+  industryProfile?: IndustryProfile;
+  businessName?: string;
 }
 
 const CustomBarTooltip = ({ active, payload, label }: any) => {
@@ -61,6 +64,8 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
   isLoading = false,
   activeSubTab = 'Overview',
   supplierDelayDays = 20,
+  industryProfile,
+  businessName = 'Shakti Electronics',
 }) => {
   const { theme } = useTheme();
   const isLight = theme === 'light';
@@ -444,6 +449,8 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
           simulationResult={simulationResult}
           cashFloor={cashFloor}
           supplierDelayDays={supplierDelayDays}
+          industryId={industryProfile?.id}
+          industryName={industryProfile?.name}
         />
       </div>
     );
@@ -459,7 +466,8 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
             Financial Command Center
           </h1>
           <p className={`text-xs mt-1 ${isLight ? 'text-[#666666]' : 'text-[#A1A1AA]'}`}>
-            Real-time liquidity forecasting, shock simulations, and operational risk metrics for Shakti Electronics.
+            Real-time liquidity forecasting, shock simulations, and operational risk metrics for {businessName}.
+            {industryProfile ? ` ${industryProfile.icon} ${industryProfile.name} business model.` : ''}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -615,6 +623,15 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
           </div>
         </div>
       </div>
+
+      {/* ── INDUSTRY-AWARE SECONDARY KPIs ─────────────────────────────── */}
+      {industryProfile && industryProfile.id !== 'other' && (
+        <IndustryKPICards
+          simulationResult={simulationResult}
+          cashFloor={cashFloor}
+          industryProfile={industryProfile}
+        />
+      )}
 
       {/* ── HORIZON SNAPSHOTS ─────────────────────────────────────────── */}
       <HorizonCards horizons={horizons} cashFloor={cashFloor} isLoading={isLoading} />

@@ -17,6 +17,8 @@ import { SettingsView } from './components/SettingsView';
 import { LoginView } from './components/LoginView';
 import { LiquidityAlertAndBriefingView } from './components/LiquidityNotifications';
 import { useTheme } from './context/ThemeContext';
+import { BusinessProfileProvider, useBusinessProfile } from './context/BusinessProfileContext';
+import { OnboardingOverlay } from './components/IndustrySelector';
 
 import {
   demoInventory,
@@ -35,8 +37,24 @@ import { Transaction, Payable, Expense } from './types';
 import { Zap, Bot } from 'lucide-react';
 
 export default function App() {
+  return (
+    <BusinessProfileProvider>
+      <AppInner />
+    </BusinessProfileProvider>
+  );
+}
+
+function AppInner() {
   const { theme } = useTheme();
   const isLight = theme === 'light';
+
+  const {
+    businessProfile,
+    industryProfile,
+    isOnboarding,
+    setOnLedgerReloaded,
+    switchDemo,
+  } = useBusinessProfile();
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return localStorage.getItem('flowshield_authenticated') === 'true';
@@ -115,6 +133,24 @@ export default function App() {
       .catch((err) => console.error('Failed to load database financials:', err))
       .finally(() => setIsLoading(false));
   }, []);
+
+  // Register the ledger-reload callback so industry demo switches refresh live data.
+  // NOTE: setOnLedgerReloaded is a useState setter, so the callback must be wrapped
+  // in a thunk — otherwise React treats the function as an updater and invokes it
+  // immediately with the current state (undefined).
+  useEffect(() => {
+    setOnLedgerReloaded(
+      () => (data) => {
+        if (data.currentCash !== undefined) setLiveCash(data.currentCash);
+        if (data.cashFloor !== undefined) setCashFloorInput(data.cashFloor);
+        if (data.supplierDelayDays !== undefined) setSupplierDelayDays(data.supplierDelayDays);
+        if (data.transactions?.length) setLiveTransactions(data.transactions);
+        if (data.payables?.length) setLivePayables(data.payables);
+        if (data.expenses?.length) setLiveExpenses(data.expenses);
+      }
+    );
+    return () => setOnLedgerReloaded(undefined);
+  }, [setOnLedgerReloaded]);
 
   // Derive current data from DB-sourced live state (empty arrays until DB loads)
   const currentTransactions = liveTransactions || [];
@@ -204,13 +240,22 @@ export default function App() {
   };
 
   if (!isAuthenticated) {
-    return <LoginView onLogin={handleLogin} />;
+    return <LoginView onLogin={handleLogin} onSwitchDemo={switchDemo} />;
   }
 
   return (
     <div className={`font-sans min-h-screen flex flex-col relative transition-colors duration-150 ${
       isLight ? 'bg-[#FFFFFF] text-[#171717]' : 'bg-[#000000] text-[#EDEDED]'
     }`}>
+      {/* Onboarding: What type of business do you run? */}
+      {isOnboarding && (
+        <OnboardingOverlay
+          onComplete={() => {
+            // Demo switch already reloaded the ledger via the context callback
+            setActiveSubTab('Overview');
+          }}
+        />
+      )}
       {/* Main Sidebar Navigation */}
       <Sidebar
         activeTab={activeTab}
@@ -241,6 +286,9 @@ export default function App() {
           onOpenChatbot={() => setIsChatbotOpen(true)}
           onLogout={handleLogout}
           onToggleSidebar={() => setIsMobileSidebarOpen((prev) => !prev)}
+          businessName={businessProfile.businessName}
+          industryName={industryProfile.name}
+          industryIcon={industryProfile.icon}
         />
 
         {/* Mobile Sub-tabs Pill Bar (Dashboard) */}
@@ -276,6 +324,8 @@ export default function App() {
               isLoading={isLoading}
               activeSubTab={activeSubTab}
               supplierDelayDays={supplierDelayDays}
+              industryProfile={industryProfile}
+              businessName={businessProfile.businessName}
             />
           )}
 
@@ -302,6 +352,7 @@ export default function App() {
                 }
                 setActiveTab('simulation');
               }}
+              industryProfile={industryProfile}
             />
           )}
 
@@ -357,6 +408,7 @@ export default function App() {
 
                 driverAnalysis={simulationResult.driverAnalysis}
                 show3D={true}
+                industryProfile={industryProfile}
               />
             </div>
           )}
@@ -371,7 +423,7 @@ export default function App() {
               suppliers={demoSuppliers}
               expenses={currentExpenses}
               onUploadCsvData={async (csvText) => {
-                const parsed = parseCSV(csvText);
+                const parsed = parseCSV(csvText, industryProfile.id);
                 if (parsed.transactions.length || parsed.payables.length || parsed.currentCash !== null) {
                   try {
                     await fetch('/api/import', {
@@ -416,6 +468,8 @@ export default function App() {
               onUpdateCashFloor={(floor) => setCashFloorInput(floor)}
               supplierDelayDays={supplierDelayDays}
               onUpdateSupplierDelay={(days) => setSupplierDelayDays(days)}
+              industryProfile={industryProfile}
+              businessProfile={businessProfile}
             />
           )}
         </main>
@@ -458,6 +512,8 @@ export default function App() {
         simulationResult={simulationResult}
         cashFloor={config.cash_floor}
         supplierDelayDays={supplierDelayDays}
+        industryName={industryProfile.name}
+        industryId={industryProfile.id}
       />
     </div>
   );

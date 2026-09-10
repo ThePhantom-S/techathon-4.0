@@ -47,7 +47,20 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   details TEXT
 );
 
--- 6. WhatsApp Notification Audit Table (safe metadata only — no tokens)
+-- 6. Business Profile Table (industry-aware configuration — no sensitive data)
+CREATE TABLE IF NOT EXISTS business_profile (
+  id VARCHAR(50) PRIMARY KEY,
+  business_name VARCHAR(200) NOT NULL,
+  industry_id VARCHAR(50) NOT NULL DEFAULT 'manufacturing',
+  currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+  country VARCHAR(100) NOT NULL DEFAULT 'India',
+  cash_floor NUMERIC(15, 2) NOT NULL DEFAULT 500000,
+  is_demo BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- 7. WhatsApp Notification Audit Table (safe metadata only — no tokens)
 CREATE TABLE IF NOT EXISTS whatsapp_notifications (
   id SERIAL PRIMARY KEY,
   business_id VARCHAR(100) DEFAULT 'shakti-config',

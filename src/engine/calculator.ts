@@ -124,6 +124,12 @@ function runSingleSimulation(
     procurementReductionPercent?: number;
     supplierTermExtensionDays?: number;
     customerAdvancePercent?: number;
+    // Industry-generic knobs (all optional, default = no change):
+    inflowMultiplier?: number;             // × expected collections (demand change, churn)
+    outflowMultiplier?: number;            // × payables & expenses (price increases)
+    oneTimeInflow?: number;                // lump-sum inflow on day 1 (advance, new project)
+    oneTimeOutflow?: number;               // lump-sum outflow on day 1 (commitment, bulk purchase)
+    recurringOutflowPerMonth?: number;     // extra monthly opex (hiring, cloud cost)
   },
   // Monte Carlo noise params (applied per run):
   noise?: {
@@ -138,6 +144,11 @@ function runSingleSimulation(
   const procurementReduction = (overrides?.procurementReductionPercent || 0) / 100;
   const termExtension = overrides?.supplierTermExtensionDays || 0;
   const customerAdvance = (overrides?.customerAdvancePercent || 0) / 100;
+  const inflowMultiplier = overrides?.inflowMultiplier ?? 1;
+  const outflowMultiplier = overrides?.outflowMultiplier ?? 1;
+  const oneTimeInflow = overrides?.oneTimeInflow || 0;
+  const oneTimeOutflow = overrides?.oneTimeOutflow || 0;
+  const recurringOutflowPerMonth = overrides?.recurringOutflowPerMonth || 0;
 
   // Demand forecast (Weighted Moving Average)
   const pastQuantities = historicalSales.map((s) => s.quantity);
@@ -180,6 +191,17 @@ function runSingleSimulation(
     let dailyInflow = i === 0 ? initialAdvanceInflow : 0;
     let dailyOutflow = 0;
 
+    // Industry-generic lump-sum events on day 1
+    if (i === 0) {
+      dailyInflow += oneTimeInflow;
+      dailyOutflow += oneTimeOutflow;
+    }
+
+    // Industry-generic recurring monthly opex (day 0, 30, 60)
+    if (recurringOutflowPerMonth > 0 && i % 30 === 0) {
+      dailyOutflow += recurringOutflowPerMonth;
+    }
+
     // AR collections
     transactions.forEach((tx) => {
       const pDate = new Date(tx.expected_payment_date);
@@ -191,7 +213,7 @@ function runSingleSimulation(
       if (paymentDate === dateStr) {
         let prob = tx.collection_probability;
         if (noise) prob = Math.max(0, Math.min(1, prob + noise.collectionProbabilityDelta));
-        let amount = tx.invoice_amount * prob;
+        let amount = tx.invoice_amount * prob * inflowMultiplier;
         if (customerAdvance > 0 && tx.customer.includes('Shakti Enterprise')) {
           amount = amount * (1 - customerAdvance);
         }
@@ -207,7 +229,7 @@ function runSingleSimulation(
       const effectiveDueDate = pDate.toISOString().split('T')[0];
 
       if (effectiveDueDate === dateStr) {
-        let amount = pay.amount;
+        let amount = pay.amount * outflowMultiplier;
         if (pay.category === 'Procurement' && procurementReduction > 0) {
           amount = amount * (1 - procurementReduction);
         }
@@ -218,7 +240,7 @@ function runSingleSimulation(
     // Expenses
     expenses.forEach((exp) => {
       if (exp.date === dateStr) {
-        dailyOutflow += exp.amount;
+        dailyOutflow += exp.amount * outflowMultiplier;
       }
     });
 
@@ -350,6 +372,11 @@ export function runSimulationEngine(
     procurementReductionPercent?: number;
     supplierTermExtensionDays?: number;
     customerAdvancePercent?: number;
+    inflowMultiplier?: number;
+    outflowMultiplier?: number;
+    oneTimeInflow?: number;
+    oneTimeOutflow?: number;
+    recurringOutflowPerMonth?: number;
   },
 ): SimulationResult {
   // Compute fast cache key

@@ -12,6 +12,9 @@ interface HeaderProps {
   onOpenChatbot?: () => void;
   onLogout?: () => void;
   onToggleSidebar?: () => void;
+  businessName?: string;
+  industryName?: string;
+  industryIcon?: string;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -24,6 +27,9 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenChatbot,
   onLogout,
   onToggleSidebar,
+  businessName = 'Shakti Electronics',
+  industryName,
+  industryIcon,
 }) => {
   const { theme, toggleTheme } = useTheme();
   const isLight = theme === 'light';
@@ -110,7 +116,14 @@ export const Header: React.FC<HeaderProps> = ({
           }`}
         >
           <Building2 className="w-3.5 h-3.5 text-[#22C55E] shrink-0" />
-          <span className="font-mono text-xs hidden xl:inline whitespace-nowrap">Shakti Electronics</span>
+          <span className="flex flex-col items-start leading-tight">
+            <span className="font-mono text-xs hidden xl:inline whitespace-nowrap">{businessName}</span>
+            {industryName && (
+              <span className="text-[9px] font-mono hidden xl:inline whitespace-nowrap opacity-80">
+                {industryIcon} {industryName}
+              </span>
+            )}
+          </span>
           <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E] shrink-0" />
         </button>
 

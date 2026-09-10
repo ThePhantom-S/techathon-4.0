@@ -6,7 +6,7 @@
  *   2. CashShock Template Format: type, date, entity, amount, status, category, extra
  */
 
-import { Transaction, Payable, Expense } from '../types';
+import { Transaction, Payable, Expense, IndustryId } from '../types';
 
 export interface ParsedCSVResult {
   format: 'bank-statement' | 'cashshock-template' | 'unknown';
@@ -77,9 +77,89 @@ function safeDate(val: string): string {
   return val;
 }
 
+// ── Industry-aware classification hints ───────────────────────────────────────
+// Optional: when an industry is known, debit descriptions are classified with
+// industry terminology. Missing fields always fall back to the generic rules.
+const INDUSTRY_KEYWORDS: Partial<Record<IndustryId, { category: string; keywords: string[] }[]>> = {
+  manufacturing: [
+    { category: 'Procurement', keywords: ['purchase', 'supplier', 'vendor', 'material', 'component', 'raw'] },
+    { category: 'Freight & Shipping', keywords: ['freight', 'logistics', 'shipping', 'transport'] },
+    { category: 'Payroll', keywords: ['salary', 'payroll', 'staff'] },
+    { category: 'Factory Operations', keywords: ['factory', 'production', 'assembly', 'manufactur'] },
+  ],
+  wholesale: [
+    { category: 'Merchandise Purchase', keywords: ['purchase', 'supplier', 'vendor', 'stock', 'wholesale'] },
+    { category: 'Warehouse', keywords: ['warehouse', 'storage', 'freight'] },
+    { category: 'Payroll', keywords: ['salary', 'payroll', 'staff'] },
+  ],
+  retail: [
+    { category: 'Merchandise', keywords: ['purchase', 'supplier', 'vendor', 'stock', 'inventory'] },
+    { category: 'Store Operations', keywords: ['store', 'rent', 'lease', 'pos'] },
+    { category: 'Payroll', keywords: ['salary', 'payroll', 'staff'] },
+    { category: 'Processing', keywords: ['gateway', 'processing', 'commission'] },
+  ],
+  saas: [
+    { category: 'Cloud Hosting', keywords: ['aws', 'azure', 'gcp', 'cloud', 'hosting', 'infrastructure'] },
+    { category: 'Software Licenses', keywords: ['software', 'license', 'saas', 'subscription'] },
+    { category: 'Payroll', keywords: ['salary', 'payroll', 'staff', 'contractor'] },
+    { category: 'Marketing & Sales', keywords: ['marketing', 'ads', 'advertising', 'sales'] },
+  ],
+  consulting: [
+    { category: 'Contractors', keywords: ['contractor', 'subcontractor', 'consultant'] },
+    { category: 'Project Expenses', keywords: ['travel', 'project', 'expense'] },
+    { category: 'Payroll', keywords: ['salary', 'payroll', 'staff'] },
+  ],
+  restaurant: [
+    { category: 'Food Supply', keywords: ['food', 'veg', 'meat', 'dairy', 'grain', 'produce', 'ingredient'] },
+    { category: 'Beverages', keywords: ['beverage', 'drink', 'liquor'] },
+    { category: 'Payroll', keywords: ['salary', 'payroll', 'staff', 'kitchen'] },
+  ],
+  logistics: [
+    { category: 'Fuel', keywords: ['fuel', 'diesel', 'petrol'] },
+    { category: 'Maintenance', keywords: ['maintenance', 'repair', 'service', 'tyre'] },
+    { category: 'Driver Payroll', keywords: ['driver', 'payroll', 'salary'] },
+  ],
+  healthcare: [
+    { category: 'Medical Supplies', keywords: ['supply', 'medical', 'pharma', 'medicine', 'consumable'] },
+    { category: 'Equipment', keywords: ['equipment', 'device', 'machinery'] },
+    { category: 'Payroll', keywords: ['salary', 'payroll', 'staff', 'clinical'] },
+  ],
+  construction: [
+    { category: 'Materials', keywords: ['steel', 'cement', 'material', 'brick', 'aggregate', 'timber'] },
+    { category: 'Contractors', keywords: ['contractor', 'labour', 'crew'] },
+    { category: 'Equipment', keywords: ['equipment', 'rental', 'machinery'] },
+  ],
+};
+
+/** Classify a debit description into an expense/payable category using industry hints first. */
+function classifyDebit(descLower: string, industryId?: string): { kind: 'expense' | 'payable'; category: string } | null {
+  const rules =
+    (industryId && INDUSTRY_KEYWORDS[industryId as IndustryId]) ||
+    INDUSTRY_KEYWORDS.manufacturing ||
+    [];
+  for (const rule of rules) {
+    if (rule.keywords.some((k) => descLower.includes(k))) {
+      const isPayable =
+        rule.category === 'Procurement' ||
+        rule.category === 'Merchandise Purchase' ||
+        rule.category === 'Merchandise' ||
+        rule.category === 'Cloud Hosting' ||
+        rule.category === 'Software Licenses' ||
+        rule.category === 'Contractors' ||
+        rule.category === 'Materials' ||
+        rule.category === 'Fuel' ||
+        rule.category === 'Food Supply' ||
+        rule.category === 'Beverages' ||
+        rule.category === 'Medical Supplies';
+      return { kind: isPayable ? 'payable' : 'expense', category: rule.category };
+    }
+  }
+  return null;
+}
+
 // ── Bank Statement Parser ─────────────────────────────────────────────────────
 
-function parseBankStatement(rows: CSVRow[], headers: string[]): Omit<ParsedCSVResult, 'format' | 'summary'> {
+function parseBankStatement(rows: CSVRow[], headers: string[], industryId?: string): Omit<ParsedCSVResult, 'format' | 'summary'> {
   const transactions: Transaction[] = [];
   const payables: Payable[] = [];
   const expenses: Expense[] = [];
@@ -121,16 +201,34 @@ function parseBankStatement(rows: CSVRow[], headers: string[]): Omit<ParsedCSVRe
       });
     }
 
-    // Debits = money going out
+    // Debits = money going out (industry-aware classification with generic fallback)
     if (debit > 0) {
       const descLower = desc.toLowerCase();
-      // Classify by description keywords
+      const industryMatch = classifyDebit(descLower, industryId);
       const isPayroll = descLower.includes('salary') || descLower.includes('payroll') || descLower.includes('staff');
       const isRent = descLower.includes('rent') || descLower.includes('lease');
       const isProcurement = descLower.includes('purchase') || descLower.includes('supplier') || descLower.includes('vendor') || descLower.includes('material');
       const isUtility = descLower.includes('electricity') || descLower.includes('power') || descLower.includes('water') || descLower.includes('utility');
 
-      if (isPayroll || isRent || isUtility) {
+      if (industryMatch) {
+        if (industryMatch.kind === 'payable') {
+          payables.push({
+            id: `csv-pay-${idx}`,
+            supplier: desc,
+            amount: debit,
+            due_date: date,
+            category: industryMatch.category,
+            status: 'DUE',
+          });
+        } else {
+          expenses.push({
+            id: `csv-exp-${idx}`,
+            date,
+            category: industryMatch.category,
+            amount: debit,
+          });
+        }
+      } else if (isPayroll || isRent || isUtility) {
         expenses.push({
           id: `csv-exp-${idx}`,
           date,
@@ -163,7 +261,8 @@ function parseBankStatement(rows: CSVRow[], headers: string[]): Omit<ParsedCSVRe
 
 // ── CashShock Template Parser ─────────────────────────────────────────────────
 
-function parseCashShockTemplate(rows: CSVRow[]): Omit<ParsedCSVResult, 'format' | 'summary'> {
+function parseCashShockTemplate(rows: CSVRow[], industryId?: string): Omit<ParsedCSVResult, 'format' | 'summary'> {
+  void industryId; // template rows carry explicit types; industry hints used via bank parser
   const transactions: Transaction[] = [];
   const payables: Payable[] = [];
   const expenses: Expense[] = [];
@@ -219,7 +318,7 @@ function parseCashShockTemplate(rows: CSVRow[]): Omit<ParsedCSVResult, 'format' 
 
 // ── Main Export ───────────────────────────────────────────────────────────────
 
-export function parseCSV(csvText: string): ParsedCSVResult {
+export function parseCSV(csvText: string, industryId?: string): ParsedCSVResult {
   const { headers, rows } = parseCSVText(csvText);
 
   if (!headers.length || !rows.length) {
@@ -240,12 +339,12 @@ export function parseCSV(csvText: string): ParsedCSVResult {
   let result: Omit<ParsedCSVResult, 'format' | 'summary'>;
 
   if (format === 'bank-statement') {
-    result = parseBankStatement(rows, headers);
+    result = parseBankStatement(rows, headers, industryId);
   } else if (format === 'cashshock-template') {
-    result = parseCashShockTemplate(rows);
+    result = parseCashShockTemplate(rows, industryId);
   } else {
     // Attempt CashShock template as fallback
-    result = parseCashShockTemplate(rows);
+    result = parseCashShockTemplate(rows, industryId);
   }
 
   const summary =

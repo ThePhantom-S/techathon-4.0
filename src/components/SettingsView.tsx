@@ -2,12 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { Settings as SettingsIcon, Key, Cpu, Sparkles, Check, Eye, EyeOff, Save, ShieldCheck, AlertCircle, RefreshCw, Zap, Building2, MessageCircle } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { LiquidityNotificationsPanel } from './LiquidityNotifications';
+import { IndustrySelector } from './IndustrySelector';
+import { BusinessProfile, IndustryProfile } from '../types';
 
 interface SettingsViewProps {
   cashFloor: number;
   onUpdateCashFloor: (floor: number) => void;
   supplierDelayDays: number;
   onUpdateSupplierDelay: (days: number) => void;
+  industryProfile?: IndustryProfile;
+  businessProfile?: BusinessProfile;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -15,6 +19,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onUpdateCashFloor,
   supplierDelayDays,
   onUpdateSupplierDelay,
+  industryProfile,
+  businessProfile,
 }) => {
   const { theme } = useTheme();
   const isLight = theme === 'light';
@@ -296,6 +302,28 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </button>
         </div>
       </form>
+
+      {/* ── BUSINESS PROFILE & INDUSTRY CARD ── */}
+      <div className={`p-6 rounded-2xl border space-y-5 shadow-sm ${
+        isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#0c0c12] border-zinc-800 text-white'
+      }`}>
+        <div className="flex items-center gap-3 border-b pb-4">
+          <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-600 font-bold">
+            <Building2 className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className={`text-base font-bold tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
+              Business Profile &amp; Industry
+            </h2>
+            <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
+              {industryProfile && businessProfile
+                ? `${businessProfile.businessName} · ${industryProfile.icon} ${industryProfile.name}`
+                : 'Set your business type to personalize analysis'}
+            </p>
+          </div>
+        </div>
+        <IndustrySelector mode="inline" />
+      </div>
 
       {/* ── THRESHOLD CONFIGURATION CARD ── */}
       <div className={`p-6 rounded-2xl border space-y-5 shadow-sm ${

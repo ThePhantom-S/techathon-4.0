@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { CounterfactualOutcome } from '../types';
+import { CounterfactualOutcome, IndustryProfile } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import { ChevronDown, ChevronUp, Zap } from 'lucide-react';
 import { formatINR } from '../engine/calculator';
+import { industryRecommendationAction, industryRecommendationTitle } from '../config/industries';
 
 interface RecommendationEngineProps {
   counterfactuals: CounterfactualOutcome[];
@@ -10,6 +11,7 @@ interface RecommendationEngineProps {
   onSelectCounterfactual: (id: string | null) => void;
   baselineMinCash: number;
   cashFloor: number;
+  industryProfile?: IndustryProfile;
 }
 
 export const RecommendationEngine: React.FC<RecommendationEngineProps> = ({
@@ -18,6 +20,7 @@ export const RecommendationEngine: React.FC<RecommendationEngineProps> = ({
   onSelectCounterfactual,
   baselineMinCash,
   cashFloor,
+  industryProfile,
 }) => {
   const { theme } = useTheme();
   const isLight = theme === 'light';
@@ -92,7 +95,7 @@ export const RecommendationEngine: React.FC<RecommendationEngineProps> = ({
                     <div className="min-w-0 font-sans">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={`font-semibold text-xs ${isLight ? 'text-[#171717]' : 'text-[#EDEDED]'}`}>
-                          {cf.title}
+                          {industryProfile ? industryRecommendationTitle(industryProfile, cf.id, cf.title) : cf.title}
                         </span>
                         {cf.rank === 1 && (
                           <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border border-[#22C55E]/30 bg-[#22C55E]/10 text-[#22C55E]">
@@ -101,7 +104,9 @@ export const RecommendationEngine: React.FC<RecommendationEngineProps> = ({
                         )}
                       </div>
                       <p className={`text-[11px] mt-0.5 ${isLight ? 'text-[#666666]' : 'text-[#A1A1AA]'}`}>
-                        {cf.statusColor === 'success' ? 'Prevents cash floor breach' : cf.statusColor === 'warning' ? 'Marginal liquidity buffer' : 'Breaches safety floor'}
+                        {industryProfile
+                          ? industryRecommendationAction(industryProfile, cf.id, cf.title)
+                          : cf.statusColor === 'success' ? 'Prevents cash floor breach' : cf.statusColor === 'warning' ? 'Marginal liquidity buffer' : 'Breaches safety floor'}
                       </p>
                     </div>
                   </div>

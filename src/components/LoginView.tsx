@@ -19,9 +19,10 @@ import { useTheme } from '../context/ThemeContext';
 
 interface LoginViewProps {
   onLogin: (companyName?: string) => void;
+  onSwitchDemo?: (industryId: string) => Promise<void> | void;
 }
 
-export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
+export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onSwitchDemo }) => {
   const { theme } = useTheme();
   const isLight = theme === 'light';
 
@@ -40,11 +41,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
     }, 400);
   };
 
-  const handleDemoLogin = (companyName: string) => {
+  const handleDemoLogin = (companyName: string, industryId?: string) => {
     setIsLoading(true);
     setTimeout(() => {
       setIsLoading(false);
       onLogin(companyName);
+      if (industryId && onSwitchDemo) {
+        onSwitchDemo(industryId).catch(() => {});
+      }
     }, 300);
   };
 
@@ -139,12 +143,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
             </p>
           </div>
 
-          {/* 1-Click Demo Profile Cards */}
+          {/* 1-Click Demo Profile Cards (clearly-labeled synthetic datasets) */}
           <div className="space-y-2">
             <div>
               <button
                 type="button"
-                onClick={() => handleDemoLogin('Shakti Electronics')}
+                onClick={() => handleDemoLogin('Shakti Electronics', 'manufacturing')}
                 className={`w-full p-3 rounded-xl border text-left transition-all duration-150 cursor-pointer group flex items-center justify-between ${
                   isLight
                     ? 'bg-white hover:bg-indigo-50/60 border-slate-200 hover:border-indigo-300 shadow-xs'
@@ -157,17 +161,45 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                   </div>
                   <div>
                     <div className="text-xs font-semibold font-sans group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                      Shakti Electronics
+                      🏭 Shakti Electronics
                     </div>
                     <div className={`text-[10px] font-mono ${isLight ? 'text-slate-600' : 'text-zinc-400'}`}>
-                      Primary Production Dataset
+                      Manufacturing · Synthetic demo
                     </div>
                   </div>
                 </div>
                 <div className={`text-[11px] font-mono font-semibold ${isLight ? 'text-slate-700' : 'text-zinc-300'}`}>
-                  ₹25.0L Cash • <span className="text-amber-600 dark:text-amber-500 font-semibold">84% Risk</span>
+                  ₹12.4L Cash
                 </div>
               </button>
+            </div>
+
+            {/* Additional industry demo profiles */}
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { id: 'retail', name: 'UrbanMart Retail', label: 'Retail / E-commerce' },
+                { id: 'saas', name: 'CloudDesk Software', label: 'SaaS / Software' },
+                { id: 'restaurant', name: 'Tandoor Junction', label: 'Restaurant / Food' },
+                { id: 'construction', name: 'StructBuild Projects', label: 'Construction' },
+              ].map((demo) => (
+                <button
+                  key={demo.id}
+                  type="button"
+                  onClick={() => handleDemoLogin(demo.name, demo.id)}
+                  className={`p-2.5 rounded-xl border text-left transition-all duration-150 cursor-pointer group ${
+                    isLight
+                      ? 'bg-white hover:bg-indigo-50/60 border-slate-200 hover:border-indigo-300 shadow-xs'
+                      : 'bg-[#0A0A0A] hover:bg-indigo-500/10 border-zinc-800 hover:border-indigo-500/40'
+                  }`}
+                >
+                  <div className="text-xs font-semibold font-sans truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                    {demo.name}
+                  </div>
+                  <div className={`text-[10px] font-mono mt-0.5 truncate ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
+                    {demo.label} · Demo
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
 
