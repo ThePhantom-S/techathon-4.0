@@ -97,7 +97,11 @@ function readProfileFromJson(): BusinessProfile | null {
   }
 }
 
+let inMemoryProfile: BusinessProfile = { ...DEFAULT_BUSINESS_PROFILE };
+
 function writeProfileToJson(profile: BusinessProfile) {
+  inMemoryProfile = { ...profile };
+  if (process.env.VERCEL) return;
   try {
     fs.writeFileSync(BUSINESS_PROFILE_FILE, JSON.stringify(profile, null, 2), 'utf-8');
   } catch (e) {
@@ -132,6 +136,7 @@ export async function getBusinessProfile(): Promise<BusinessProfile> {
     const res = await dbQuery(`SELECT * FROM business_profile WHERE id = 'shakti-config'`);
     if (res?.rows?.[0]) {
       const profile = mapProfileRow(res.rows[0]);
+      inMemoryProfile = { ...profile };
       return profile;
     }
   } catch (err) {
@@ -139,7 +144,11 @@ export async function getBusinessProfile(): Promise<BusinessProfile> {
   }
 
   const jsonProfile = readProfileFromJson();
-  return jsonProfile || { ...DEFAULT_BUSINESS_PROFILE };
+  if (jsonProfile) {
+    inMemoryProfile = { ...jsonProfile };
+    return jsonProfile;
+  }
+  return inMemoryProfile || { ...DEFAULT_BUSINESS_PROFILE };
 }
 
 export async function saveBusinessProfile(input: {
@@ -161,6 +170,8 @@ export async function saveBusinessProfile(input: {
     isDemo: input.isDemo !== undefined ? input.isDemo : current.isDemo,
     updatedAt: new Date().toISOString(),
   };
+
+  inMemoryProfile = { ...next };
 
   // Mirror to JSON always (works in every engine mode)
   writeProfileToJson(next);
@@ -254,22 +265,41 @@ export async function switchDemoBusiness(industryId: string): Promise<{ profile:
 
 // ── Database Initialization ──────────────────────────────────────────────
 export async function initDb() {
-  console.log('Attempting connection to PostgreSQL database container...');
-  try {
-    const client = await pool.connect();
-    console.log('Successfully connected to PostgreSQL container on port ' + (process.env.DB_PORT || '5432'));
-    activeEngine = 'container';
-    client.release();
-  } catch (err) {
-    console.log('PostgreSQL container not found. Initializing real embedded PostgreSQL (PGlite engine)...');
+  if (process.env.VERCEL) {
+    // In Vercel serverless, avoid TCP timeout to 127.0.0.1
     try {
       activeEngine = 'pglite';
-      await getOrCreatePGlite();
-      console.log(`Successfully initialized real embedded PostgreSQL database`);
+      const db = await getOrCreatePGlite();
+      if (db && typeof (db as any).waitReady === 'function') {
+        await (db as any).waitReady();
+      }
+      console.log('Successfully initialized real embedded PostgreSQL database');
     } catch (pgliteErr) {
       console.warn('PGlite engine failed to load (running in serverless fallback mode):', (pgliteErr as any)?.message || pgliteErr);
       activeEngine = 'fallback';
       return;
+    }
+  } else {
+    console.log('Attempting connection to PostgreSQL database container...');
+    try {
+      const client = await pool.connect();
+      console.log('Successfully connected to PostgreSQL container on port ' + (process.env.DB_PORT || '5432'));
+      activeEngine = 'container';
+      client.release();
+    } catch (err) {
+      console.log('PostgreSQL container not found. Initializing real embedded PostgreSQL (PGlite engine)...');
+      try {
+        activeEngine = 'pglite';
+        const db = await getOrCreatePGlite();
+        if (db && typeof (db as any).waitReady === 'function') {
+          await (db as any).waitReady();
+        }
+        console.log(`Successfully initialized real embedded PostgreSQL database`);
+      } catch (pgliteErr) {
+        console.warn('PGlite engine failed to load (running in serverless fallback mode):', (pgliteErr as any)?.message || pgliteErr);
+        activeEngine = 'fallback';
+        return;
+      }
     }
   }
 

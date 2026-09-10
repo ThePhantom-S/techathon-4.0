@@ -2,7 +2,6 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
-import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import {
   initDb,
@@ -46,6 +45,12 @@ async function startServer() {
   const app = express();
   const PORT = parseInt(process.env.PORT || '3000');
 
+  app.use((req: any, _res, next) => {
+    if (req.body !== undefined && req.body !== null && typeof req.body === 'object') {
+      req._body = true;
+    }
+    next();
+  });
   app.use(express.json());
 
   // Initialize DB Connection
@@ -2281,6 +2286,7 @@ RULES:
   // Vite middleware for dev or static serving for prod (only in standalone server mode)
   if (!process.env.VERCEL) {
     if (process.env.NODE_ENV !== 'production') {
+      const { createServer: createViteServer } = await import('vite');
       const vite = await createViteServer({
         server: {
           middlewareMode: true,

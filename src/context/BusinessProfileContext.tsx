@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { BusinessProfile, IndustryId, IndustryProfile } from '../types';
 import { getIndustryProfile } from '../config/industries';
+import { safeParseJson } from '../utils/safeJson';
 
 const DEFAULT_PROFILE: BusinessProfile = {
   id: 'shakti-config',
@@ -49,7 +50,7 @@ export const BusinessProfileProvider: React.FC<{ children: React.ReactNode }> = 
   useEffect(() => {
     let cancelled = false;
     fetch('/api/business/profile')
-      .then((res) => res.json())
+      .then((res) => safeParseJson(res))
       .then((data) => {
         if (cancelled || !data?.profile) return;
         setBusinessProfile(data.profile);
@@ -74,7 +75,7 @@ export const BusinessProfileProvider: React.FC<{ children: React.ReactNode }> = 
   const refreshFromServer = useCallback(async () => {
     try {
       const res = await fetch('/api/business/profile');
-      const data = await res.json();
+      const data = await safeParseJson(res);
       if (data?.profile) setBusinessProfile(data.profile);
     } catch (e) {
       console.error('Failed to refresh business profile:', e);
@@ -83,18 +84,32 @@ export const BusinessProfileProvider: React.FC<{ children: React.ReactNode }> = 
 
   const saveProfile = useCallback(
     async (input: { businessName?: string; industryId?: IndustryId }) => {
-      const res = await fetch('/api/business/profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
-      });
-      const data = await res.json();
-      if (data?.profile) {
-        setBusinessProfile(data.profile);
+      try {
+        const res = await fetch('/api/business/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        });
+        const data = await safeParseJson(res);
+        if (data?.profile) {
+          setBusinessProfile(data.profile);
+          return data.profile as BusinessProfile;
+        }
+      } catch (err) {
+        console.warn('Network error saving profile to server, updating locally:', err);
       }
-      return data?.profile as BusinessProfile;
+
+      // Resilient client-side fallback
+      const fallbackProfile: BusinessProfile = {
+        ...businessProfile,
+        businessName: input.businessName || businessProfile.businessName,
+        industryId: input.industryId || businessProfile.industryId,
+        updatedAt: new Date().toISOString(),
+      };
+      setBusinessProfile(fallbackProfile);
+      return fallbackProfile;
     },
-    []
+    [businessProfile]
   );
 
   const switchDemo = useCallback(
@@ -104,8 +119,10 @@ export const BusinessProfileProvider: React.FC<{ children: React.ReactNode }> = 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ industryId }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Failed to switch demo business');
+      const data = await safeParseJson(res);
+      if (!res.ok || data?.error) {
+        throw new Error(data?.error || `Server error (${res.status}) switching demo business`);
+      }
       if (data?.profile) setBusinessProfile(data.profile);
       onLedgerReloaded?.({
         currentCash: data.currentCash,
@@ -127,8 +144,12 @@ export const BusinessProfileProvider: React.FC<{ children: React.ReactNode }> = 
         const demo = ['manufacturing', 'retail', 'saas', 'restaurant', 'construction'].includes(industryId);
         let demoName: string | undefined;
         if (demo) {
-          const res = await switchDemo(industryId);
-          demoName = (res as any)?.profile?.businessName;
+          try {
+            const res = await switchDemo(industryId);
+            demoName = (res as any)?.profile?.businessName;
+          } catch (demoErr) {
+            console.warn('Demo switch failed during onboarding:', demoErr);
+          }
         }
         // Persist the chosen industry; keep the demo business name unless the
         // user typed their own.
@@ -137,12 +158,12 @@ export const BusinessProfileProvider: React.FC<{ children: React.ReactNode }> = 
           businessName: businessName || demoName || businessProfile.businessName,
         });
       } catch (e) {
-        // Even if the demo dataset is unavailable, persist the industry choice.
-        console.warn('Onboarding demo switch failed, persisting industry only:', e);
+        console.warn('Onboarding save failed, persisting locally:', e);
         await saveProfile({ industryId, businessName: businessName || businessProfile.businessName });
+      } finally {
+        localStorage.setItem('flowshield_onboarded', 'true');
+        setIsOnboarding(false);
       }
-      localStorage.setItem('flowshield_onboarded', 'true');
-      setIsOnboarding(false);
     },
     [businessProfile.businessName, saveProfile, switchDemo]
   );

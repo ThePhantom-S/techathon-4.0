@@ -35,6 +35,7 @@ import { parseCSV } from './engine/csvParser';
 import { generatePDFReport } from './engine/pdfGenerator';
 import { Transaction, Payable, Expense } from './types';
 import { Zap, Bot, Box } from 'lucide-react';
+import { safeParseJson } from './utils/safeJson';
 
 export default function App() {
   return (
@@ -97,16 +98,16 @@ function AppInner() {
         setIsConnectorOpen(true);
         // Reload financial data from DB
         fetch('/api/financials')
-          .then((res) => res.json())
+          .then((res) => safeParseJson(res))
           .then((data) => {
-            if (data.config) {
+            if (data?.config) {
               setCashFloorInput(data.config.cash_floor);
               setSupplierDelayDays(data.config.supplier_delay_days);
               setLiveCash(data.config.current_cash);
             }
-            if (data.transactions && data.transactions.length) setLiveTransactions(data.transactions);
-            if (data.payables && data.payables.length) setLivePayables(data.payables);
-            if (data.expenses && data.expenses.length) setLiveExpenses(data.expenses);
+            if (data?.transactions && data.transactions.length) setLiveTransactions(data.transactions);
+            if (data?.payables && data.payables.length) setLivePayables(data.payables);
+            if (data?.expenses && data.expenses.length) setLiveExpenses(data.expenses);
           })
           .catch(() => {});
       } else if (connectorResult === 'error') {
@@ -124,16 +125,16 @@ function AppInner() {
     if (params.get('connector')) return;
 
     fetch('/api/financials')
-      .then((res) => res.json())
+      .then((res) => safeParseJson(res))
       .then((data) => {
-        if (data.config) {
+        if (data?.config) {
           setCashFloorInput(data.config.cash_floor);
           setSupplierDelayDays(data.config.supplier_delay_days);
           setLiveCash(data.config.current_cash);
         }
-        if (data.transactions && data.transactions.length) setLiveTransactions(data.transactions);
-        if (data.payables && data.payables.length) setLivePayables(data.payables);
-        if (data.expenses && data.expenses.length) setLiveExpenses(data.expenses);
+        if (data?.transactions && data.transactions.length) setLiveTransactions(data.transactions);
+        if (data?.payables && data.payables.length) setLivePayables(data.payables);
+        if (data?.expenses && data.expenses.length) setLiveExpenses(data.expenses);
       })
       .catch((err) => console.error('Failed to load database financials:', err))
       .finally(() => setIsLoading(false));
