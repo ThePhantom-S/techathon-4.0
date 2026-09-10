@@ -186,7 +186,15 @@ function parseBankStatement(rows: CSVRow[], headers: string[], industryId?: stri
     const balance = safeFloat(row[balanceCol] || '0');
     const date = safeDate(rawDate);
 
-    if (balance > 0) currentCash = balance; // Last balance row will be most recent
+    if (desc.toLowerCase().includes('opening')) {
+      if (balance !== 0) currentCash = balance;
+      return;
+    }
+
+    // Capture opening balance from the first row with a balance if not set
+    if (balance !== 0 && currentCash === null) {
+      currentCash = balance;
+    }
 
     // Credits = money coming in = transactions (receivables)
     if (credit > 0) {
@@ -207,8 +215,9 @@ function parseBankStatement(rows: CSVRow[], headers: string[], industryId?: stri
       const industryMatch = classifyDebit(descLower, industryId);
       const isPayroll = descLower.includes('salary') || descLower.includes('payroll') || descLower.includes('staff');
       const isRent = descLower.includes('rent') || descLower.includes('lease');
-      const isProcurement = descLower.includes('purchase') || descLower.includes('supplier') || descLower.includes('vendor') || descLower.includes('material');
+      const isProcurement = descLower.includes('purchase') || descLower.includes('supplier') || descLower.includes('vendor') || descLower.includes('material') || descLower.includes('component');
       const isUtility = descLower.includes('electricity') || descLower.includes('power') || descLower.includes('water') || descLower.includes('utility');
+      const isFreight = descLower.includes('freight') || descLower.includes('logistics') || descLower.includes('shipping') || descLower.includes('bill');
 
       if (industryMatch) {
         if (industryMatch.kind === 'payable') {
@@ -228,20 +237,20 @@ function parseBankStatement(rows: CSVRow[], headers: string[], industryId?: stri
             amount: debit,
           });
         }
-      } else if (isPayroll || isRent || isUtility) {
+      } else if (isPayroll || isRent) {
         expenses.push({
           id: `csv-exp-${idx}`,
           date,
-          category: isPayroll ? 'Payroll' : isRent ? 'Rent' : 'Utilities',
+          category: isPayroll ? 'Payroll' : 'Rent',
           amount: debit,
         });
-      } else if (isProcurement) {
+      } else if (isProcurement || isFreight || isUtility) {
         payables.push({
           id: `csv-pay-${idx}`,
           supplier: desc,
           amount: debit,
           due_date: date,
-          category: 'Procurement',
+          category: isProcurement ? 'Procurement' : isFreight ? 'Freight & Shipping' : 'Utilities',
           status: 'DUE',
         });
       } else {
@@ -277,7 +286,7 @@ function parseCashShockTemplate(rows: CSVRow[], industryId?: string): Omit<Parse
     const entity = row['entity'] || row['customer'] || row['supplier'] || `Row ${idx + 1}`;
     const amount = safeFloat(row['amount'] || '0');
     const status = (row['status'] || 'PENDING').toUpperCase();
-    const category = row['category'] || 'General';
+    const category = row['category'] || (type === 'expense' ? entity : 'General');
     const extra = row['extra'] || '';
 
     if (type === 'transaction' || type === 'receivable' || type === 'invoice') {
@@ -306,7 +315,7 @@ function parseCashShockTemplate(rows: CSVRow[], industryId?: string): Omit<Parse
         category,
         amount,
       });
-    } else if (type === 'balance' || type === 'cash') {
+    } else if (type === 'balance' || type === 'cash' || type === 'opening' || type === 'opening_balance' || type === 'opening_cash') {
       currentCash = amount;
     } else {
       errors.push(`Row ${idx + 2}: Unknown type "${type}" — skipped.`);

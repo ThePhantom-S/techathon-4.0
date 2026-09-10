@@ -17,6 +17,7 @@ interface BusinessConnectorModalProps {
   onClose: () => void;
   onConnected: () => void;
   isConnected: boolean;
+  initialView?: ViewMode;
   onDataImported?: (data: {
     transactions: any[];
     payables: any[];
@@ -25,16 +26,24 @@ interface BusinessConnectorModalProps {
   }) => void;
 }
 
-type ViewMode = 'SELECT' | 'ZOHO' | 'QUICKBOOKS' | 'SANDBOX_CONNECTING' | 'SANDBOX_SUCCESS' | 'SANDBOX_ERROR';
+export type ViewMode = 'SELECT' | 'ZOHO' | 'QUICKBOOKS' | 'SANDBOX_CONNECTING' | 'SANDBOX_SUCCESS' | 'SANDBOX_ERROR';
 
 export const BusinessConnectorModal: React.FC<BusinessConnectorModalProps> = ({
   isOpen,
   onClose,
   onConnected,
   isConnected,
+  initialView = 'SELECT',
   onDataImported,
 }) => {
-  const [view, setView] = useState<ViewMode>('SELECT');
+  const [view, setView] = useState<ViewMode>(initialView);
+
+  React.useEffect(() => {
+    if (isOpen && initialView) {
+      setView(initialView);
+    }
+  }, [isOpen, initialView]);
+
   const [sandboxError, setSandboxError] = useState('');
   const [sandboxLoading, setSandboxLoading] = useState('');
 

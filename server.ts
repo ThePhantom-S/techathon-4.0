@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import {
@@ -30,7 +31,7 @@ import {
   getZohoState, saveZohoCredentials, saveZohoTokens, updateZohoSyncResult, disconnectZoho,
   getQuickBooksState, saveQuickBooksCredentials, saveQuickBooksTokens, updateQuickBooksSyncResult, disconnectQuickBooks,
 } from './src/db/connectorState';
-import { runSimulationEngine, formatINR } from './src/engine/calculator';
+import { runSimulationEngine, runMonteCarlo, formatINR } from './src/engine/calculator';
 import { demoInventory, demoSuppliers, demoSales } from './src/engine/sampleData';
 import { INDUSTRY_OPTIONS, INDUSTRY_PROFILES, getIndustryProfile, isValidIndustryId } from './src/config/industries';
 import { runSafeToCommitAnalysis } from './src/engine/safeToCommit';
@@ -1322,62 +1323,49 @@ async function startServer() {
     }
   });
 
-  // REST API: GET /api/monte-carlo — Returns Monte Carlo distribution data for visualization
+  // REST API: GET /api/monte-carlo — Returns real 500-run Monte Carlo stochastic simulation data
   app.get('/api/monte-carlo', async (req, res) => {
     try {
       const financials = await getFinancials();
-      const result = runSimulationEngine(
+      const runs = Math.min(1000, Math.max(50, parseInt(req.query.runs as string, 10) || 500));
+      const seedParam = req.query.seed !== undefined && req.query.seed !== '' ? parseInt(req.query.seed as string, 10) : undefined;
+      const arVolatility = req.query.arVol ? parseFloat(req.query.arVol as string) : 0.10;
+      const paymentDelayDays = req.query.payDelay ? parseInt(req.query.payDelay as string, 10) : 3;
+      const demandVolatility = req.query.demandVol ? parseFloat(req.query.demandVol as string) : 0.15;
+
+      // Run real stochastic Monte Carlo across the live database dataset
+      const mcResult = runMonteCarlo(
         financials.config,
         financials.transactions,
         financials.payables,
         financials.expenses,
         demoInventory,
         demoSuppliers,
-        demoSales
+        demoSales,
+        undefined,
+        runs,
+        {
+          seed: seedParam,
+          arVolatility,
+          paymentDelayDays,
+          demandVolatility,
+          maxTrajectories: 50,
+        }
       );
 
-      // Get actual distribution from Monte Carlo (all 500 min-cash values)
-      // We need to re-run Monte Carlo to get the distribution array
-      const rand = (() => {
-        let s = 42;
-        return () => {
-          s = (s * 1664525 + 1013904223) & 0xffffffff;
-          return (s >>> 0) / 0xffffffff;
-        };
-      })();
-
-      const distribution: number[] = [];
-      const runs = 500;
-
-      for (let r = 0; r < runs; r++) {
-        const noise = {
-          collectionProbabilityDelta: (rand() - 0.5) * 0.2,
-          paymentDateDeltaDays: Math.round((rand() - 0.5) * 6),
-          demandDelta: (rand() - 0.5) * 0.3,
-        };
-        // Use the deterministic min cash as base with noise applied
-        const baseMin = result.minProjectedCash;
-        const noiseFactor = 1 + (noise.collectionProbabilityDelta * 0.5) + (noise.demandDelta * 0.3);
-        const noisyMin = baseMin * noiseFactor;
-        distribution.push(noisyMin);
-      }
-
-      distribution.sort((a, b) => a - b);
-
       // Create genuine histogram bins from actual distribution
-      const rangeMin = distribution[0];
-      const rangeMax = distribution[distribution.length - 1];
+      const distribution = mcResult.distribution;
+      const rangeMin = distribution[0] || 0;
+      const rangeMax = distribution[distribution.length - 1] || 1;
       const binCount = 25;
-      const binWidth = (rangeMax - rangeMin) / binCount;
+      const binWidth = Math.max(1, (rangeMax - rangeMin) / binCount);
       const bins: { range: string; count: number; isBreached: boolean; start: number; end: number }[] = [];
 
       for (let i = 0; i < binCount; i++) {
         const binStart = rangeMin + i * binWidth;
         const binEnd = binStart + binWidth;
         const isBreached = binEnd < financials.config.cash_floor;
-        
-        // Count actual values in this bin
-        const count = distribution.filter(v => v >= binStart && v < binEnd).length;
+        const count = distribution.filter(v => v >= binStart && (i === binCount - 1 ? v <= binEnd : v < binEnd)).length;
         
         bins.push({
           range: `${(binStart / 100000).toFixed(1)}L`,
@@ -1390,18 +1378,28 @@ async function startServer() {
 
       res.json({
         bins,
-        p10: result.p10Cash,
-        p50: result.p50Cash,
-        p90: result.p90Cash,
+        p10: mcResult.p10Cash,
+        p50: mcResult.p50Cash,
+        p90: mcResult.p90Cash,
+        meanCash: mcResult.meanCash,
+        stdDevCash: mcResult.stdDevCash,
         cashFloor: financials.config.cash_floor,
-        breachProbability: result.breachProbability,
-        totalRuns: runs,
-        minCash: result.minProjectedCash,
+        breachProbability: mcResult.breachProbability,
+        breachCount: mcResult.breachCount,
+        totalRuns: mcResult.totalRuns,
+        standardError: mcResult.standardError,
+        confidenceInterval95: mcResult.confidenceInterval95,
+        executionTimeMs: mcResult.executionTimeMs,
         currentCash: financials.config.current_cash,
-        distribution, // Return actual 500 values for transparency
+        distribution,
+        iterations: mcResult.iterations,
+        trajectories: mcResult.trajectories,
+        dailyPercentiles: mcResult.dailyPercentiles,
+        firstBreachDays: mcResult.firstBreachDays,
+        isRealExecution: true,
       });
     } catch (e: any) {
-      res.status(500).json({ error: 'Failed to compute Monte Carlo distribution', detail: e.message });
+      res.status(500).json({ error: 'Failed to compute real Monte Carlo distribution', detail: e.message });
     }
   });
 
@@ -2285,24 +2283,32 @@ RULES:
 
   // Vite middleware for dev or static serving for prod (only in standalone server mode)
   if (!process.env.VERCEL) {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`CashShock server running on http://0.0.0.0:${PORT}`);
+    });
+
     if (process.env.NODE_ENV !== 'production') {
-      const { createServer: createViteServer } = await import('vite');
-      const vite = await createViteServer({
-        server: {
-          middlewareMode: true,
-          watch: {
-            ignored: [
-              '**/cashshock_postgres_db/**',
-              '**/pgdata_local/**',
-              '**/*.json',
-              '**/*.log',
-              '**/.git/**',
-            ],
+      try {
+        const vite = await createViteServer({
+          server: {
+            middlewareMode: true,
+            watch: {
+              ignored: [
+                '**/cashshock_postgres_db/**',
+                '**/pgdata_local/**',
+                '**/.pgdata/**',
+                '**/*.json',
+                '**/*.log',
+                '**/.git/**',
+              ],
+            },
           },
-        },
-        appType: 'spa',
-      });
-      app.use(vite.middlewares);
+          appType: 'spa',
+        });
+        app.use(vite.middlewares);
+      } catch (viteErr) {
+        console.error('Vite initialization error:', viteErr);
+      }
     } else {
       const distPath = path.join(process.cwd(), 'dist');
       app.use(express.static(distPath));
@@ -2310,10 +2316,6 @@ RULES:
         res.sendFile(path.join(distPath, 'index.html'));
       });
     }
-
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`CashShock server running on http://0.0.0.0:${PORT}`);
-    });
   }
 
   return app;

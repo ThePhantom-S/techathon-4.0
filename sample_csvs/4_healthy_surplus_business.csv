@@ -1,0 +1,11 @@
+﻿type,date,entity,amount,status,category,extra
+balance,2026-10-01,Reserve Bank Current Account,4000000,,,
+transaction,2026-10-10,Tata Motors Distribution,1800000,COLLECTED,Automotive Supply,1.0
+transaction,2026-10-25,Reliance Industrial Order,2200000,PENDING,Industrial Components,0.98
+transaction,2026-11-15,Mahindra Logistics Supply,1500000,PENDING,Automotive Supply,0.95
+transaction,2026-12-05,Larsen & Toubro Project,2500000,PENDING,Infrastructure,0.92
+payable,2026-10-15,Jindal Steel & Alloys,1100000,DUE,Raw Materials,
+payable,2026-11-05,Bharat Electricals,750000,DUE,Component Supplies,
+expense,2026-10-05,Factory Staff Payroll,600000,,Payroll,
+expense,2026-11-05,Factory Staff Payroll,600000,,Payroll,
+expense,2026-12-05,Factory Staff Payroll,600000,,Payroll,

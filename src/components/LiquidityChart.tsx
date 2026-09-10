@@ -56,12 +56,13 @@ export const LiquidityChart: React.FC<LiquidityChartProps> = ({
   }));
 
   const cashFloorLakhs = parseFloat((cashFloor / 100000).toFixed(2));
-  const minCashInView = Math.min(...slicedPoints.map((p) => p.lowerBound)) / 100000;
-  const maxCashInView = Math.max(...slicedPoints.map((p) => p.upperBound)) / 100000;
+  const minCashInView = slicedPoints.length > 0 ? Math.min(...slicedPoints.map((p) => p.lowerBound)) / 100000 : 0;
+  const maxCashInView = slicedPoints.length > 0 ? Math.max(...slicedPoints.map((p) => p.upperBound)) / 100000 : 10;
   const yDomain = [
     Math.floor(Math.min(minCashInView, cashFloorLakhs) - 2),
-    Math.ceil(maxCashInView + 2),
+    Math.ceil(Math.max(maxCashInView, cashFloorLakhs) + 2),
   ];
+
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {

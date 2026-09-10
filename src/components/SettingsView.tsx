@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Settings as SettingsIcon, Key, Cpu, Sparkles, Check, Eye, EyeOff, Save, ShieldCheck, AlertCircle, RefreshCw, Zap, Building2, MessageCircle } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
-import { LiquidityNotificationsPanel } from './LiquidityNotifications';
+
 import { IndustrySelector } from './IndustrySelector';
 import { BusinessProfile, IndustryProfile } from '../types';
 
@@ -165,7 +165,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
 
         <div className="space-y-4">
-          {/* GOOGLE GEMINI KEY */}
+
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className={`text-xs font-semibold flex items-center gap-2 ${isLight ? 'text-slate-700' : 'text-zinc-300'}`}>
@@ -340,21 +340,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           <div className="space-y-1.5">
-            <label className={`text-xs font-semibold block ${isLight ? 'text-slate-700' : 'text-zinc-300'}`}>
-              Minimum Cash Floor Target (₹)
-            </label>
-            <input
-              type="number"
-              value={cashFloor}
-              onChange={(e) => onUpdateCashFloor(Number(e.target.value))}
-              className={`w-full p-2.5 rounded-xl font-mono text-xs border focus:outline-none transition-colors ${
-                isLight
-                  ? 'bg-slate-50 border-slate-200 focus:border-emerald-500 text-slate-900'
-                  : 'bg-zinc-900 border-zinc-800 focus:border-emerald-500 text-zinc-100'
-              }`}
-            />
-            <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
-              Breach alerts trigger when projected cash drops below this threshold.
+            <div className="flex items-center justify-between mb-2">
+              <label className={`text-xs font-semibold block ${isLight ? 'text-slate-700' : 'text-zinc-300'}`}>
+                Minimum Cash Floor Target (₹)
+              </label>
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">
+                AUTO-COMPUTED
+              </span>
+            </div>
+            
+            <div className={`w-full p-2.5 rounded-xl font-mono text-sm border font-bold flex items-center justify-between ${
+              isLight ? 'bg-slate-50 border-slate-200 text-slate-900' : 'bg-zinc-900 border-zinc-800 text-zinc-100'
+            }`}>
+              <span>₹{(cashFloor / 100000).toFixed(1)}L</span>
+            </div>
+            
+            <p className={`text-[11px] leading-relaxed mt-2 ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
+              <strong>Treasury Policy Algorithm:</strong> The system autonomously provisions your safety floor by reserving 30 days of standard Operating Expenses (Payroll + Rent) alongside all "CRITICAL" tier vendor payables due within the next 15 days, plus a 10% contingency variance.
             </p>
           </div>
 
@@ -381,25 +383,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </div>
 
-      {/* ── LIQUIDITY NOTIFICATIONS (WHATSAPP) CARD ── */}
-      <div className={`p-6 rounded-2xl border space-y-5 shadow-sm ${
-        isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#0c0c12] border-zinc-800 text-white'
-      }`}>
-        <div className="flex items-center gap-3 border-b pb-4">
-          <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-600 font-bold">
-            <MessageCircle className="w-5 h-5" />
-          </div>
-          <div>
-            <h2 className={`text-base font-bold tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
-              Liquidity Notifications
-            </h2>
-            <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
-              WhatsApp delivery of verified liquidity alerts and briefings. The access token is never exposed to the browser.
-            </p>
-          </div>
-        </div>
-        <LiquidityNotificationsPanel embedded />
-      </div>
+
     </div>
   );
 };

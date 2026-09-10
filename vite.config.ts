@@ -24,6 +24,7 @@ export default defineConfig(() => {
         ignored: [
           '**/cashshock_postgres_db/**',
           '**/pgdata_local/**',
+          '**/.pgdata/**',
           '**/*.json',
           '**/*.log',
           '**/.git/**',

@@ -1,0 +1,16 @@
+﻿type,date,entity,amount,status,category,extra
+balance,2026-10-01,Silicon Valley Bank Balance,2500000,,,
+transaction,2026-10-05,Enterprise Plan - FinTech Corp,600000,PENDING,SaaS Subscription,0.98
+transaction,2026-10-15,Annual Subscription - HealthApp,850000,PENDING,SaaS Subscription,0.95
+transaction,2026-11-05,Enterprise Plan - LogisticsAI,750000,PENDING,SaaS Subscription,0.98
+transaction,2026-11-20,Custom Integration - EduTech,500000,PENDING,Professional Services,0.90
+payable,2026-10-10,Amazon Web Services (AWS),450000,CRITICAL,Cloud Hosting,
+payable,2026-10-25,Google Cloud Platform,180000,DUE,Cloud Hosting,
+payable,2026-11-10,Amazon Web Services (AWS),480000,DUE,Cloud Hosting,
+payable,2026-11-15,Datadog & NewRelic,85000,DUE,Software Licenses,
+expense,2026-10-01,Engineering & Sales Payroll,850000,,Payroll,
+expense,2026-10-08,WeWork Coworking Rent,120000,,Rent,
+expense,2026-10-18,Google & LinkedIn Ad Spend,200000,,Marketing & Sales,
+expense,2026-11-01,Engineering & Sales Payroll,850000,,Payroll,
+expense,2026-11-08,WeWork Coworking Rent,120000,,Rent,
+expense,2026-11-18,Google & LinkedIn Ad Spend,220000,,Marketing & Sales,

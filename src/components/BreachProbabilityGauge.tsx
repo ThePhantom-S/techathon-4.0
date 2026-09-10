@@ -62,14 +62,14 @@ export const BreachProbabilityGauge: React.FC<BreachProbabilityGaugeProps> = ({
             Breach Risk Matrix
           </h3>
           <p className={`text-xs mt-0.5 ${isLight ? 'text-[#666666]' : 'text-[#A1A1AA]'}`}>
-            500 Scenario Stress Tests
+            Monte Carlo Stress Tests
           </p>
         </div>
 
         <div className={`px-2 py-0.5 rounded border text-[11px] font-mono ${
           isLight ? 'bg-[#FFFFFF] border-[#EAEAEA] text-[#666666]' : 'bg-[#111111] border-[#222222] text-[#71717A]'
         }`}>
-          500 SCENARIOS
+          STOCHASTIC
         </div>
       </div>
 

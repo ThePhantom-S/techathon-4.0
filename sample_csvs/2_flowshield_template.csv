@@ -1,0 +1,15 @@
+﻿type,date,entity,amount,status,category,extra
+balance,2026-10-01,Opening Cash Reserves,1500000,,,
+transaction,2026-10-12,Apex Retailers Ltd,650000,PENDING,Electronics,0.95
+transaction,2026-10-24,Nexus Enterprises,850000,DELAYED,Hardware,0.80
+transaction,2026-11-10,Zenith Wholesale Corp,1400000,PENDING,Electronics,0.90
+transaction,2026-11-28,Omega Distributors,1100000,PENDING,Hardware,0.95
+payable,2026-10-15,Vanguard Raw Materials,1200000,CRITICAL,Procurement,
+payable,2026-10-22,BlueDart Express Logistics,180000,DUE,Freight & Shipping,
+payable,2026-11-04,Microchip International,950000,DUE,Procurement,
+payable,2026-11-18,City Power & Utilities,90000,DUE,Utilities,
+expense,2026-10-05,Monthly Payroll,350000,,Staff Payroll,
+expense,2026-10-10,Warehouse Lease Rent,150000,,Rent,
+expense,2026-11-05,Monthly Payroll,350000,,Staff Payroll,
+expense,2026-11-10,Warehouse Lease Rent,150000,,Rent,
+expense,2026-12-05,Monthly Payroll,350000,,Staff Payroll,

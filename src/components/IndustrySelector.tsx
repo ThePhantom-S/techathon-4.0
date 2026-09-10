@@ -1,290 +1,238 @@
 import React, { useState } from 'react';
-import { ArrowRight, Building2, Check, ShieldAlert } from 'lucide-react';
+import { Building2, Check, ShieldCheck, Save, Globe, Coins, FileText, Briefcase } from 'lucide-react';
 import { INDUSTRY_OPTIONS } from '../config/industries';
 import { IndustryId } from '../types';
 import { useBusinessProfile } from '../context/BusinessProfileContext';
 import { useTheme } from '../context/ThemeContext';
 import { IndustryIcon } from './IndustryIcon';
 
-/**
- * IndustrySelector — used in two modes:
- *   - "onboarding": full-screen modal shown after first login ("What type of
- *     business do you run?")
- *   - "inline": compact switcher for Settings → Business Profile
- */
-export const IndustrySelector: React.FC<{
+interface IndustrySelectorProps {
   mode?: 'onboarding' | 'inline';
   onComplete?: () => void;
-}> = ({ mode = 'onboarding', onComplete }) => {
+}
+
+export const IndustrySelector: React.FC<IndustrySelectorProps> = ({ mode = 'inline', onComplete }) => {
   const { theme } = useTheme();
   const isLight = theme === 'light';
-  const { businessProfile, industryProfile, saveProfile, switchDemo, completeOnboarding } = useBusinessProfile();
+  const { businessProfile, industryProfile, saveProfile } = useBusinessProfile();
 
-  const [selectedId, setSelectedId] = useState<IndustryId | null>(null);
   const [businessName, setBusinessName] = useState(businessProfile.businessName);
+  const [selectedIndustry, setSelectedIndustry] = useState<IndustryId>(businessProfile.industryId);
+  const [currency, setCurrency] = useState(businessProfile.currency || 'INR');
+  const [country, setCountry] = useState(businessProfile.country || 'India');
+  const [taxId, setTaxId] = useState('33AABCS1234B1Z1');
+
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const isOnboarding = mode === 'onboarding';
-
-  const handleConfirm = async () => {
-    if (!selectedId) return;
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!businessName.trim()) {
+      setError('Company name cannot be empty.');
+      return;
+    }
     setIsSaving(true);
     setError(null);
+    setSuccess(null);
+
     try {
-      if (isOnboarding) {
-        await completeOnboarding(selectedId, businessName.trim() || undefined);
-        onComplete?.();
-      } else {
-        // Settings: change industry WITHOUT deleting financial records.
-        await saveProfile({
-          industryId: selectedId,
-          businessName: businessName.trim() || businessProfile.businessName,
-        });
-        setSuccess('Business profile updated. Your financial records remain unchanged.');
-        setTimeout(() => setSuccess(null), 5000);
-      }
-    } catch (e: any) {
-      setError(e?.message || 'Failed to save business profile.');
+      await saveProfile({
+        businessName: businessName.trim(),
+        industryId: selectedIndustry,
+      });
+      setSuccess('Business profile and industry model updated successfully.');
+      setTimeout(() => setSuccess(null), 4000);
+      onComplete?.();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to save business profile.');
     } finally {
       setIsSaving(false);
     }
-  };
-
-  const handleSwitchDemo = async (id: IndustryId) => {
-    setIsSaving(true);
-    setError(null);
-    try {
-      await switchDemo(id);
-      setSuccess(`"${businessProfile.businessName}" demo loaded — synthetic data, not real company records.`);
-      setTimeout(() => setSuccess(null), 5000);
-    } catch (e: any) {
-      setError(e?.message || 'Failed to switch demo dataset.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const cardClass = (id: IndustryId) => {
-    const isActive = selectedId === id;
-    const base = isLight
-      ? 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-md'
-      : 'bg-[#0A0A0A] border-zinc-800 hover:border-indigo-500/40 hover:shadow-lg';
-    return `p-4 rounded-xl border text-left transition-all duration-150 cursor-pointer group ${base} ${
-      isActive
-        ? isLight
-          ? 'border-indigo-500 ring-2 ring-indigo-500/20 bg-indigo-50/50'
-          : 'border-indigo-500 ring-2 ring-indigo-500/30 bg-indigo-500/10'
-        : ''
-    }`;
   };
 
   return (
-    <div className={`font-sans ${isOnboarding ? '' : 'space-y-4'}`}>
-      {/* Title block */}
-      <div className="space-y-1.5">
-        <h2 className={`text-xl font-bold tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
-          {isOnboarding ? 'What type of business do you run?' : 'Business Profile'}
-        </h2>
-        <p className={`text-xs ${isLight ? 'text-slate-600' : 'text-zinc-400'}`}>
-          FlowShield uses this information to personalize your financial and supply-chain analysis.
-        </p>
-      </div>
-
-      {/* Business name */}
-      {isOnboarding && (
-        <div className="space-y-1.5">
-          <label className={`text-xs font-semibold block ${isLight ? 'text-slate-700' : 'text-zinc-300'}`}>
-            Business Name
-          </label>
-          <input
-            type="text"
-            value={businessName}
-            onChange={(e) => setBusinessName(e.target.value)}
-            placeholder="e.g. Shakti Electronics"
-            className={`w-full p-2.5 rounded-xl border text-xs font-sans outline-none transition-all ${
-              isLight
-                ? 'bg-white border-slate-300 text-slate-900 focus:border-indigo-600'
-                : 'bg-[#0A0A0A] border-zinc-800 text-white focus:border-indigo-500'
-            }`}
-          />
-        </div>
-      )}
-
-      {/* Current selection (inline mode) */}
-      {!isOnboarding && (
-        <div className={`p-3.5 rounded-xl border flex items-center gap-3 ${
+    <form onSubmit={handleSave} className="space-y-4 font-sans">
+      {/* Active Profile Status Bar */}
+      <div
+        className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 ${
           isLight ? 'bg-slate-50 border-slate-200' : 'bg-zinc-900/60 border-zinc-800'
-        }`}>
-          <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-            isLight ? 'bg-indigo-50 border border-indigo-200' : 'bg-indigo-500/15 border border-indigo-500/30'
-          }`}>
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          <div
+            className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+              isLight ? 'bg-indigo-50 border border-indigo-200' : 'bg-indigo-500/15 border border-indigo-500/30'
+            }`}
+          >
             <IndustryIcon icon={industryProfile.icon} className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
           </div>
-          <div className="min-w-0 flex-1">
+          <div>
             <div className={`text-sm font-semibold truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>
               {businessProfile.businessName}
             </div>
             <div className={`text-[11px] font-mono ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
-              {industryProfile.name} • {businessProfile.currency} • {businessProfile.country}
+              {industryProfile.name} • {currency} • {country}
             </div>
           </div>
-          <span className={`text-[10px] font-mono px-2 py-1 rounded-full border ${
-            businessProfile.isDemo
-              ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
-              : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
-          }`}>
-            {businessProfile.isDemo ? 'DEMO DATA' : 'LIVE'}
-          </span>
         </div>
-      )}
 
-      {/* Industry cards grid */}
-      <div className={`grid grid-cols-1 sm:grid-cols-2 ${isOnboarding ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-2.5 max-h-[52vh] overflow-y-auto pr-1`}>
-        {INDUSTRY_OPTIONS.map((opt) => (
-          <button key={opt.id} onClick={() => setSelectedId(opt.id)} className={cardClass(opt.id)}>
-            <div className="flex items-start gap-2.5">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                isLight ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' : 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/25'
-              }`}>
-                <IndustryIcon icon={opt.icon} className="w-4 h-4" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className={`text-xs font-semibold ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                  {opt.name}
-                </div>
-                <p className={`text-[11px] leading-snug mt-0.5 ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
-                  {opt.description}
-                </p>
-                <span className={`inline-block mt-1.5 text-[9px] font-mono px-1.5 py-0.5 rounded-full border ${
-                  isLight ? 'text-slate-400 border-slate-200' : 'text-zinc-500 border-zinc-800'
-                }`}>
-                  {opt.category}
-                </span>
-              </div>
-              {selectedId === opt.id && (
-                <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0">
-                  <Check className="w-3 h-3" />
-                </span>
-              )}
-            </div>
-          </button>
-        ))}
+        <span className="text-[10px] font-mono px-2.5 py-1 rounded-full border bg-emerald-500/10 border-emerald-500/30 text-emerald-500 font-semibold flex items-center gap-1">
+          <ShieldCheck className="w-3 h-3" />
+          Enterprise Profile
+        </span>
       </div>
 
-      {/* Warning for inline change */}
-      {!isOnboarding && (
-        <div className={`p-3 rounded-xl border flex items-start gap-2.5 text-[11px] ${
-          isLight ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
-        }`}>
-          <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
-          <span>
-            Changing business type changes how FlowShield interprets your operational data. Your underlying financial
-            records will remain unchanged.
-          </span>
+      {/* Form Fields Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Company Name */}
+        <div className="space-y-1.5 sm:col-span-2">
+          <label className={`text-xs font-semibold block ${isLight ? 'text-slate-700' : 'text-zinc-300'}`}>
+            Company / Business Legal Name <span className="text-red-500">*</span>
+          </label>
+          <div className="relative">
+            <Building2 className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={businessName}
+              onChange={(e) => setBusinessName(e.target.value)}
+              required
+              placeholder="e.g. Acme Industries Ltd"
+              className={`w-full pl-9 pr-3 py-2 rounded-xl border text-xs font-sans outline-none transition-colors ${
+                isLight
+                  ? 'bg-white border-slate-200 focus:border-indigo-600 text-slate-900'
+                  : 'bg-zinc-900 border-zinc-800 focus:border-indigo-500 text-zinc-100'
+              }`}
+            />
+          </div>
         </div>
-      )}
 
-      {/* Status messages */}
+        {/* Industry Model Dropdown */}
+        <div className="space-y-1.5">
+          <label className={`text-xs font-semibold block ${isLight ? 'text-slate-700' : 'text-zinc-300'}`}>
+            Industry Operating Model
+          </label>
+          <div className="relative">
+            <Briefcase className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <select
+              value={selectedIndustry}
+              onChange={(e) => setSelectedIndustry(e.target.value as IndustryId)}
+              className={`w-full pl-9 pr-3 py-2 rounded-xl border text-xs font-sans outline-none transition-colors cursor-pointer ${
+                isLight
+                  ? 'bg-white border-slate-200 focus:border-indigo-600 text-slate-900'
+                  : 'bg-zinc-900 border-zinc-800 focus:border-indigo-500 text-zinc-100'
+              }`}
+            >
+              {INDUSTRY_OPTIONS.map((opt) => (
+                <option key={opt.id} value={opt.id} className="bg-zinc-900 text-white">
+                  {opt.name} ({opt.category})
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
+            Calibrates working capital benchmarks (DSO, DPO, inventory turns).
+          </p>
+        </div>
+
+        {/* Operating Currency */}
+        <div className="space-y-1.5">
+          <label className={`text-xs font-semibold block ${isLight ? 'text-slate-700' : 'text-zinc-300'}`}>
+            Reporting Currency
+          </label>
+          <div className="relative">
+            <Coins className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <select
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+              className={`w-full pl-9 pr-3 py-2 rounded-xl border text-xs font-sans outline-none transition-colors cursor-pointer ${
+                isLight
+                  ? 'bg-white border-slate-200 focus:border-indigo-600 text-slate-900'
+                  : 'bg-zinc-900 border-zinc-800 focus:border-indigo-500 text-zinc-100'
+              }`}
+            >
+              <option value="INR" className="bg-zinc-900 text-white">INR (₹) - Indian Rupee</option>
+              <option value="USD" className="bg-zinc-900 text-white">USD ($) - US Dollar</option>
+              <option value="EUR" className="bg-zinc-900 text-white">EUR (€) - Euro</option>
+              <option value="GBP" className="bg-zinc-900 text-white">GBP (£) - British Pound</option>
+            </select>
+          </div>
+          <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
+            Financial figures and simulation outputs will render in this currency.
+          </p>
+        </div>
+
+        {/* Operating Jurisdiction / Country */}
+        <div className="space-y-1.5">
+          <label className={`text-xs font-semibold block ${isLight ? 'text-slate-700' : 'text-zinc-300'}`}>
+            Country / Tax Jurisdiction
+          </label>
+          <div className="relative">
+            <Globe className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              placeholder="e.g. India"
+              className={`w-full pl-9 pr-3 py-2 rounded-xl border text-xs font-sans outline-none transition-colors ${
+                isLight
+                  ? 'bg-white border-slate-200 focus:border-indigo-600 text-slate-900'
+                  : 'bg-zinc-900 border-zinc-800 focus:border-indigo-500 text-zinc-100'
+              }`}
+            />
+          </div>
+        </div>
+
+        {/* GSTIN / Corporate Tax ID */}
+        <div className="space-y-1.5">
+          <label className={`text-xs font-semibold block ${isLight ? 'text-slate-700' : 'text-zinc-300'}`}>
+            GSTIN / Corporate Tax ID
+          </label>
+          <div className="relative">
+            <FileText className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={taxId}
+              onChange={(e) => setTaxId(e.target.value)}
+              placeholder="e.g. 33AABCS1234B1Z1"
+              className={`w-full pl-9 pr-3 py-2 rounded-xl border text-xs font-sans outline-none transition-colors ${
+                isLight
+                  ? 'bg-white border-slate-200 focus:border-indigo-600 text-slate-900'
+                  : 'bg-zinc-900 border-zinc-800 focus:border-indigo-500 text-zinc-100'
+              }`}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Feedback Messages */}
       {error && (
-        <div className={`p-3 rounded-xl border text-xs font-semibold ${
-          isLight ? 'bg-red-50 border-red-200 text-red-700' : 'bg-red-500/10 border-red-500/30 text-red-300'
-        }`}>
+        <div className="p-3 rounded-xl border bg-red-500/10 border-red-500/30 text-red-400 text-xs font-semibold">
           {error}
         </div>
       )}
       {success && (
-        <div className={`p-3 rounded-xl border text-xs font-semibold ${
-          isLight ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-        }`}>
-          {success}
+        <div className="p-3 rounded-xl border bg-emerald-500/10 border-emerald-500/30 text-emerald-400 text-xs font-semibold flex items-center gap-2">
+          <Check className="w-4 h-4" />
+          <span>{success}</span>
         </div>
       )}
 
-      {/* Demo dataset switcher (inline mode) */}
-      {!isOnboarding && (
-        <div className={`p-3.5 rounded-xl border space-y-2.5 ${
-          isLight ? 'bg-slate-50/70 border-slate-200' : 'bg-zinc-900/50 border-zinc-800'
-        }`}>
-          <div className={`text-[11px] font-mono font-bold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
-            Demo Business Profiles
-          </div>
-          <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
-            Switch between clearly-labeled synthetic demo datasets. Never presented as real company data.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {(['manufacturing', 'retail', 'saas', 'restaurant', 'construction'] as IndustryId[]).map((id) => {
-              const opt = INDUSTRY_OPTIONS.find((o) => o.id === id)!;
-              const isActiveDemo = businessProfile.industryId === id;
-              return (
-                <button
-                  key={id}
-                  onClick={() => handleSwitchDemo(id)}
-                  disabled={isSaving}
-                  className={`px-3 py-1.5 rounded-full border text-[11px] font-medium transition-all cursor-pointer disabled:opacity-50 ${
-                    isActiveDemo
-                      ? isLight
-                        ? 'bg-indigo-600 text-white border-indigo-600'
-                        : 'bg-indigo-600 text-white border-indigo-500'
-                      : isLight
-                        ? 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'
-                        : 'bg-[#0A0A0A] border-zinc-800 text-zinc-300 hover:border-indigo-500/40'
-                  }`}
-                >
-                  <span className="inline-flex items-center gap-1.5">
-                    <IndustryIcon icon={opt.icon} className="w-3 h-3 shrink-0" />
-                    <span>{opt.name}</span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Footer actions */}
-      <div className="flex items-center justify-end gap-2.5 pt-2">
+      {/* Save Button */}
+      <div className="flex justify-end pt-2">
         <button
-          onClick={handleConfirm}
-          disabled={!selectedId || isSaving}
-          className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-40 ${
-            isOnboarding
-              ? 'bg-gradient-to-r from-indigo-500 to-blue-600 text-white shadow-md shadow-indigo-500/20'
-              : isLight
-                ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                : 'bg-indigo-600 text-white hover:bg-indigo-500'
-          }`}
+          type="submit"
+          disabled={isSaving}
+          className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-all cursor-pointer flex items-center gap-2 shadow-sm disabled:opacity-50"
         >
-          {isOnboarding ? (
-            <>
-              Continue <ArrowRight className="w-3.5 h-3.5" />
-            </>
-          ) : (
-            <>
-              <Building2 className="w-3.5 h-3.5" /> Save Business Profile
-            </>
-          )}
+          <Save className="w-4 h-4" />
+          <span>{isSaving ? 'Saving Profile...' : 'Save Profile Changes'}</span>
         </button>
       </div>
-    </div>
+    </form>
   );
 };
 
-/** Full-screen onboarding overlay used right after login. */
 export const OnboardingOverlay: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
-  const { theme } = useTheme();
-  const isLight = theme === 'light';
-
-  return (
-    <div className={`fixed inset-0 z-[60] flex items-center justify-center p-4 overflow-y-auto ${
-      isLight ? 'bg-slate-100/95' : 'bg-[#050507]/95'
-    }`}>
-      <div className={`w-full max-w-3xl rounded-2xl border p-6 md:p-8 space-y-5 ${
-        isLight ? 'bg-white border-slate-200 shadow-2xl' : 'bg-[#0A0A0A] border-zinc-800 shadow-2xl'
-      }`}>
-        <IndustrySelector mode="onboarding" onComplete={onComplete} />
-      </div>
-    </div>
-  );
+  return null;
 };

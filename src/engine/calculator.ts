@@ -69,8 +69,69 @@ function computeARRisk(
   });
 }
 
-// ── Working Capital Metrics (SRS §10.3) ──────────────────────────────────────
-function computeWorkingCapital(
+// ── Dynamic Safety Floor Calculation ───────────────────────────────────────
+export function computeDynamicCashFloor(payables: Payable[], expenses: Expense[]): number {
+  // Base OpEx: Sum of all Payroll/Rent/Utilities in the next 30 days.
+  // Critical Payables: Sum of all CRITICAL payables in the next 15 days.
+  
+  const allDates = [
+    ...payables.map((p) => p.due_date),
+    ...expenses.map((e) => e.date),
+  ].filter(Boolean);
+  
+  let startMs = Date.now();
+  if (allDates.length > 0) {
+    const validDates = allDates
+      .map((d) => new Date(d).getTime())
+      .filter((t) => !isNaN(t) && t > 0)
+      .sort((a, b) => a - b);
+    if (validDates.length > 0) {
+      startMs = validDates[0];
+    }
+  }
+
+  const MS_PER_DAY = 86400000;
+
+  let opexBuffer = 0;
+  expenses.forEach(e => {
+    const t = new Date(e.date).getTime();
+    const daysOut = (t - startMs) / MS_PER_DAY;
+    if (daysOut >= 0 && daysOut <= 30) {
+      const cat = e.category?.toLowerCase() || '';
+      if (cat.includes('payroll') || cat.includes('salary') || cat.includes('rent') || cat.includes('utilit')) {
+        opexBuffer += e.amount;
+      }
+    }
+  });
+
+  // Fallback: if no matching expenses in 30 days, take a rough average monthly run-rate
+  if (opexBuffer === 0 && expenses.length > 0) {
+     const totalExp = expenses.reduce((sum, e) => sum + e.amount, 0);
+     opexBuffer = (totalExp / 3);
+  }
+
+  let criticalPayablesBuffer = 0;
+  payables.forEach(p => {
+    const t = new Date(p.due_date).getTime();
+    const daysOut = (t - startMs) / MS_PER_DAY;
+    if (daysOut >= 0 && daysOut <= 15) {
+      if (p.status === 'CRITICAL' || (p as any).isCritical) {
+        criticalPayablesBuffer += p.amount;
+      }
+    }
+  });
+
+  const subtotal = opexBuffer + criticalPayablesBuffer;
+  const contingency = subtotal * 0.10; // 10% contingency
+  
+  let floor = Math.round(subtotal + contingency);
+  
+  // Guarantee a baseline so it's never absurdly 0
+  return floor > 0 ? floor : 500000;
+}
+
+// ── Working Capital Engine (SRS §10.2) ───────────────────────────────────────
+export function computeWorkingCapital(
   transactions: Transaction[],
   payables: Payable[],
   inventory: InventoryItem[],
@@ -82,14 +143,10 @@ function computeWorkingCapital(
   const totalAP = payables.reduce((s, p) => s + p.amount, 0);
   const avgInventoryVal = inventory.reduce((s, i) => s + i.quantity * i.unit_cost, 0) / Math.max(1, inventory.length);
 
-  // ── FIX: Use actual invoice data for revenue calculation ──
-  // The historical sales data is too small (₹4.65L) compared to actual invoices (₹46.2L)
-  // We use the invoices as a proxy for 90-day revenue since they represent what the business earns
-  const invoiceRevenue = totalAR; // Total invoices = 90-day revenue proxy
+  // Revenue = larger of (total AR invoices) or (sum of historical sales revenue) — fully data-driven
+  const invoiceRevenue = totalAR;
   const historicalRevenue = historicalSales.reduce((s, sale) => s + sale.revenue, 0);
-  
-  // Use the larger of invoice-based or historical-based revenue
-  const revenue90d = Math.max(invoiceRevenue, historicalRevenue, 4630000); // At least ₹46.3L
+  const revenue90d = Math.max(invoiceRevenue, historicalRevenue, 1); // floor at 1 only to avoid /0
   const cogs90d = revenue90d * 0.65; // 65% COGS ratio
 
   // DSO = (Total AR / Revenue) × 90 days
@@ -112,7 +169,7 @@ function computeWorkingCapital(
 }
 
 // ── Core daily cash roll-forward (deterministic) ─────────────────────────────
-function runSingleSimulation(
+export function runSingleSimulation(
   config: Config,
   transactions: Transaction[],
   payables: Payable[],
@@ -139,7 +196,21 @@ function runSingleSimulation(
   },
 ): { minCash: number; dailyPoints: DailyPoint[]; hasBreach: boolean } {
   const days = 90;
-  const startDate = new Date('2026-10-01');
+  let startDate = new Date('2026-10-01');
+  const allDates: string[] = [
+    ...transactions.map((t) => t.date || t.expected_payment_date),
+    ...payables.map((p) => p.due_date),
+    ...expenses.map((e) => e.date),
+  ].filter(Boolean);
+  if (allDates.length > 0) {
+    const validDates = allDates
+      .map((d) => new Date(d))
+      .filter((d) => !isNaN(d.getTime()))
+      .sort((a, b) => a.getTime() - b.getTime());
+    if (validDates.length > 0) {
+      startDate = validDates[0];
+    }
+  }
 
   const procurementReduction = (overrides?.procurementReductionPercent || 0) / 100;
   const termExtension = overrides?.supplierTermExtensionDays || 0;
@@ -276,7 +347,58 @@ function runSingleSimulation(
 }
 
 // ── Monte Carlo Simulation (SRS §10.5, §11) ──────────────────────────────────
-function runMonteCarlo(
+export interface MonteCarloTrajectory {
+  run: number;
+  hasBreach: boolean;
+  minCash: number;
+  breachDay: number | null;
+  cashPoints: number[]; // 90 days of cash values
+}
+
+export interface DailyPercentile {
+  day: number;
+  date: string;
+  p10: number;
+  p50: number;
+  p90: number;
+  min: number;
+  max: number;
+}
+
+export interface MonteCarloRunDetail {
+  run: number;
+  noise: {
+    collectionProbabilityDelta: number;
+    paymentDateDeltaDays: number;
+    demandDelta: number;
+  };
+  minCash: number;
+  terminalCash: number;
+  hasBreach: boolean;
+  breachDay?: number | null;
+}
+
+export interface MonteCarloResult {
+  breachProbability: number;
+  breachCount: number;
+  totalRuns: number;
+  p10Cash: number;
+  p50Cash: number;
+  p90Cash: number;
+  meanCash: number;
+  stdDevCash: number;
+  standardError: number;
+  confidenceInterval95: [number, number];
+  distribution: number[];
+  iterations: MonteCarloRunDetail[];
+  trajectories: MonteCarloTrajectory[];
+  dailyPercentiles: DailyPercentile[];
+  firstBreachDays: number[];
+  executionTimeMs: number;
+  isRealExecution: boolean;
+}
+
+export function runMonteCarlo(
   config: Config,
   transactions: Transaction[],
   payables: Payable[],
@@ -286,35 +408,273 @@ function runMonteCarlo(
   historicalSales: Sale[],
   overrides?: Parameters<typeof runSingleSimulation>[7],
   runs = 500,
-): { breachProbability: number; p10Cash: number; p50Cash: number; p90Cash: number; distribution: number[] } {
-  const rand = seededRandom(42);
-  const minCashes: number[] = [];
-  let breachCount = 0;
+  options?: {
+    seed?: number | null;
+    arVolatility?: number;     // default 0.10 (±10%)
+    paymentDelayDays?: number;  // default 3 (±3 days)
+    demandVolatility?: number;  // default 0.15 (±15%)
+    maxTrajectories?: number;   // default 40
+  }
+): MonteCarloResult {
+  const t0 = performance.now();
+  const arVol = options?.arVolatility ?? 0.10;
+  const payDelay = options?.paymentDelayDays ?? 3;
+  const demandVol = options?.demandVolatility ?? 0.15;
+  const maxTraj = options?.maxTrajectories ?? 40;
 
-  for (let r = 0; r < runs; r++) {
-    const noise = {
-      collectionProbabilityDelta: (rand() - 0.5) * 0.2,   // ±10%
-      paymentDateDeltaDays: Math.round((rand() - 0.5) * 6), // ±3 days
-      demandDelta: (rand() - 0.5) * 0.3,                    // ±15%
-    };
-    const { minCash, hasBreach } = runSingleSimulation(
-      config, transactions, payables, expenses, inventory, suppliers, historicalSales, overrides, noise
-    );
-    minCashes.push(minCash);
-    if (hasBreach) breachCount++;
+  // Pseudo-random generator (seeded if seed provided, otherwise Math.random for true stochastic randomness)
+  const useSeed = typeof options?.seed === 'number';
+  let s = options?.seed ?? 42;
+  const rand = useSeed 
+    ? () => {
+        s = (s * 1664525 + 1013904223) & 0xffffffff;
+        return (s >>> 0) / 0xffffffff;
+      }
+    : () => Math.random();
+
+  const MS_PER_DAY = 86400000;
+  // Use today as the simulation start anchor so that future-dated items
+  // land at positive baseDay values within the 90-day window.
+  // Use the exact same start date logic as deterministic run to align windows
+  const allDates: string[] = [
+    ...transactions.map((t) => t.date || t.expected_payment_date),
+    ...payables.map((p) => p.due_date),
+    ...expenses.map((e) => e.date),
+  ].filter(Boolean);
+  
+  let startMs = Date.now(); // fallback to today
+  if (allDates.length > 0) {
+    const validDates = allDates
+      .map((d) => new Date(d).getTime())
+      .filter((t) => !isNaN(t) && t > 0)
+      .sort((a, b) => a - b);
+    if (validDates.length > 0) {
+      startMs = validDates[0];
+    }
   }
 
+  // Baseline daily cash sales derived from historical sales (if available)
+  const avgDailySales = historicalSales.length > 0
+    ? historicalSales.reduce((sum, s) => sum + (s.revenue || 0), 0) / Math.max(1, historicalSales.length)
+    : 0;
+
+  const procurementReduction = (overrides?.procurementReductionPercent || 0) / 100;
+  const termExtension = overrides?.supplierTermExtensionDays || 0;
+  const customerAdvance = (overrides?.customerAdvancePercent || 0) / 100;
+  const inflowMultiplier = overrides?.inflowMultiplier ?? 1;
+  const outflowMultiplier = overrides?.outflowMultiplier ?? 1;
+  const oneTimeInflow = overrides?.oneTimeInflow || 0;
+  const oneTimeOutflow = overrides?.oneTimeOutflow || 0;
+  const recurringOutflowPerMonth = overrides?.recurringOutflowPerMonth || 0;
+
+  // Pre-index dates once for 200x execution speedup
+  const txIndexed = transactions.map(tx => ({
+    baseDay: Math.round((new Date(tx.expected_payment_date).getTime() - startMs) / MS_PER_DAY),
+    amount: tx.invoice_amount,
+    prob: tx.collection_probability,
+    customer: tx.customer,
+  }));
+
+  const payIndexed = payables.map(p => ({
+    baseDay: Math.round((new Date(p.due_date).getTime() - startMs) / MS_PER_DAY),
+    amount: p.amount,
+    category: p.category,
+  }));
+
+  const expIndexed = expenses.map(e => ({
+    baseDay: Math.round((new Date(e.date).getTime() - startMs) / MS_PER_DAY),
+    amount: e.amount,
+  }));
+
+  const days = 90;
+  const minCashes: number[] = [];
+  const iterations: MonteCarloRunDetail[] = [];
+  const firstBreachDays: number[] = [];
+  let breachCount = 0;
+
+  // Day-by-day cash matrix for quantile bands: dayCashMatrix[day][run]
+  const dayCashMatrix: Float64Array[] = Array.from({ length: days }, () => new Float64Array(runs));
+  
+  // Sample trajectories to keep for the stochastic fan chart
+  const sampledTrajectories: MonteCarloTrajectory[] = [];
+  const sampleStep = Math.max(1, Math.floor(runs / maxTraj));
+
+  for (let r = 0; r < runs; r++) {
+    const dProb = (rand() - 0.5) * 2 * arVol;
+    const dDays = Math.round((rand() - 0.5) * 2 * payDelay);
+    const dDemand = (rand() - 0.5) * 2 * demandVol;
+
+    const dailyInflows = new Float64Array(days);
+    const dailyOutflows = new Float64Array(days);
+
+    // Apply stochastic demand perturbation to daily cash sales
+    if (avgDailySales > 0) {
+      const perturbedDailySale = avgDailySales * Math.max(0, 1 + dDemand);
+      for (let d = 0; d < days; d++) {
+        dailyInflows[d] += perturbedDailySale;
+      }
+    }
+
+    let initialAdvanceInflow = 0;
+    if (customerAdvance > 0) {
+      initialAdvanceInflow = 3000000 * customerAdvance;
+    }
+
+    if (oneTimeInflow > 0 || initialAdvanceInflow > 0) {
+      dailyInflows[0] += oneTimeInflow + initialAdvanceInflow;
+    }
+    if (oneTimeOutflow > 0) {
+      dailyOutflows[0] += oneTimeOutflow;
+    }
+
+    // Inflows (Accounts Receivable)
+    for (let i = 0; i < txIndexed.length; i++) {
+      const tx = txIndexed[i];
+      const targetDay = tx.baseDay + dDays;
+      if (targetDay >= 0 && targetDay < days) {
+        let effProb = Math.max(0, Math.min(1, tx.prob + dProb));
+        let amount = tx.amount * effProb * inflowMultiplier;
+        if (customerAdvance > 0 && tx.customer.includes('Shakti Enterprise')) {
+          amount = amount * (1 - customerAdvance);
+        }
+        dailyInflows[targetDay] += amount;
+      }
+    }
+
+    // Payables (Accounts Payable)
+    for (let i = 0; i < payIndexed.length; i++) {
+      const p = payIndexed[i];
+      const targetDay = p.baseDay + termExtension + Math.round(dDays * 0.5);
+      if (targetDay >= 0 && targetDay < days) {
+        let amount = p.amount * outflowMultiplier;
+        if (p.category === 'Procurement' && procurementReduction > 0) {
+          amount = amount * (1 - procurementReduction);
+        }
+        dailyOutflows[targetDay] += amount;
+      }
+    }
+
+    // Expenses (OPEX)
+    for (let i = 0; i < expIndexed.length; i++) {
+      const e = expIndexed[i];
+      if (e.baseDay >= 0 && e.baseDay < days) {
+        dailyOutflows[e.baseDay] += e.amount * outflowMultiplier;
+      }
+    }
+
+    // Recurring monthly opex (day 0, 30, 60)
+    if (recurringOutflowPerMonth > 0) {
+      dailyOutflows[0] += recurringOutflowPerMonth;
+      dailyOutflows[30] += recurringOutflowPerMonth;
+      dailyOutflows[60] += recurringOutflowPerMonth;
+    }
+
+    let cash = config.current_cash + initialAdvanceInflow;
+    let minCash = cash;
+    let terminalCash = cash;
+    let hasBreach = false;
+    let breachDay: number | null = null;
+    const isSampled = (r % sampleStep === 0) || r < 5;
+    const runCashPoints: number[] = isSampled ? new Array(days) : [];
+
+    for (let d = 0; d < days; d++) {
+      cash += dailyInflows[d] - dailyOutflows[d];
+      dayCashMatrix[d][r] = cash;
+
+      if (cash < minCash) minCash = cash;
+      if (cash < config.cash_floor) {
+        if (!hasBreach) {
+          breachDay = d + 1;
+          firstBreachDays.push(d + 1);
+        }
+        hasBreach = true;
+      }
+
+      if (isSampled) {
+        runCashPoints[d] = Math.round(cash);
+      }
+    }
+    terminalCash = cash; // final cash on day 90
+
+    if (hasBreach) breachCount++;
+    minCashes.push(minCash);
+
+    iterations.push({
+      run: r + 1,
+      noise: {
+        collectionProbabilityDelta: dProb,
+        paymentDateDeltaDays: dDays,
+        demandDelta: dDemand,
+      },
+      minCash,
+      terminalCash: Math.round(terminalCash),
+      hasBreach,
+      breachDay,
+    });
+
+    if (isSampled && sampledTrajectories.length < maxTraj) {
+      sampledTrajectories.push({
+        run: r + 1,
+        hasBreach,
+        minCash: Math.round(minCash),
+        breachDay,
+        cashPoints: runCashPoints,
+      });
+    }
+  }
+
+  // Calculate daily percentiles for fan chart confidence envelopes
+  const dailyPercentiles: DailyPercentile[] = [];
+  for (let d = 0; d < days; d++) {
+    const dayVals = Array.from(dayCashMatrix[d]).sort((a, b) => a - b);
+    const dateObj = new Date(startMs + d * MS_PER_DAY);
+    dailyPercentiles.push({
+      day: d + 1,
+      date: dateObj.toISOString().split('T')[0],
+      p10: Math.round(dayVals[Math.floor(runs * 0.10)]),
+      p50: Math.round(dayVals[Math.floor(runs * 0.50)]),
+      p90: Math.round(dayVals[Math.floor(runs * 0.90)]),
+      min: Math.round(dayVals[0]),
+      max: Math.round(dayVals[runs - 1]),
+    });
+  }
+
+  // Distribution statistics
   minCashes.sort((a, b) => a - b);
-  const rawProb = breachCount / runs;
-  // Cap realistic breach risk score at maximum 84% (0.84)
-  const breachProbability = Math.min(0.84, Math.max(0, rawProb));
+  const p10Cash = minCashes[Math.floor(runs * 0.10)];
+  const p50Cash = minCashes[Math.floor(runs * 0.50)];
+  const p90Cash = minCashes[Math.floor(runs * 0.90)];
+
+  const sumCash = minCashes.reduce((acc, c) => acc + c, 0);
+  const meanCash = sumCash / runs;
+  const varianceCash = minCashes.reduce((acc, c) => acc + Math.pow(c - meanCash, 2), 0) / runs;
+  const stdDevCash = Math.sqrt(varianceCash);
+
+  const breachProbability = breachCount / runs;
+  const standardError = Math.sqrt((breachProbability * (1 - breachProbability)) / runs);
+  const ciLower = Math.max(0, breachProbability - 1.96 * standardError);
+  const ciUpper = Math.min(1, breachProbability + 1.96 * standardError);
+
+  const elapsed = performance.now() - t0;
 
   return {
     breachProbability,
-    p10Cash: minCashes[Math.floor(runs * 0.10)],
-    p50Cash: minCashes[Math.floor(runs * 0.50)],
-    p90Cash: minCashes[Math.floor(runs * 0.90)],
-    distribution: minCashes, // Return values for histogram
+    breachCount,
+    totalRuns: runs,
+    p10Cash,
+    p50Cash,
+    p90Cash,
+    meanCash,
+    stdDevCash,
+    standardError,
+    confidenceInterval95: [ciLower, ciUpper],
+    distribution: minCashes,
+    iterations,
+    trajectories: sampledTrajectories,
+    dailyPercentiles,
+    firstBreachDays,
+    executionTimeMs: elapsed,
+    isRealExecution: true,
   };
 }
 
@@ -379,14 +739,15 @@ export function runSimulationEngine(
     recurringOutflowPerMonth?: number;
   },
 ): SimulationResult {
-  // Compute fast cache key
+  // Compute cache key — include actual data fingerprint, not just counts,
+  // so uploading new data with the same row count correctly invalidates the cache.
   const cacheKey = JSON.stringify({
     c: config.current_cash,
     cf: config.cash_floor,
     sd: config.supplier_delay_days,
-    txCount: transactions.length,
-    payCount: payables.length,
-    expCount: expenses.length,
+    txHash: transactions.map(t => `${t.expected_payment_date}:${t.invoice_amount}:${t.collection_probability}`).join('|'),
+    payHash: payables.map(p => `${p.due_date}:${p.amount}`).join('|'),
+    expHash: expenses.map(e => `${e.date}:${e.amount}`).join('|'),
     ov: overrides,
   });
 
@@ -452,8 +813,8 @@ export function runSimulationEngine(
   const totalLiquidityGap = minCash < config.cash_floor ? minCash - config.cash_floor : 0;
 
   const procurementReduction = (overrides?.procurementReductionPercent || 0) / 100;
-  const topOutflows = payables
-    .map((p) => {
+  const topOutflows = [
+    ...payables.map((p) => {
       let amt = p.amount;
       if (p.category === 'Procurement' && procurementReduction > 0) amt = amt * (1 - procurementReduction);
       return {
@@ -467,8 +828,19 @@ export function runSimulationEngine(
         statusTag: p.status === 'CRITICAL' ? 'CRITICAL' : undefined,
         isCritical: p.status === 'CRITICAL',
       };
-    })
-    .sort((a, b) => b.amount - a.amount);
+    }),
+    ...expenses.map((e) => ({
+      id: e.id,
+      type: 'OUTFLOW' as const,
+      entity: e.category,
+      category: `Operating Expense - ${e.date.substring(5)}`,
+      amount: e.amount,
+      date: e.date,
+      due_date: e.date,
+      statusTag: undefined,
+      isCritical: false,
+    })),
+  ].sort((a, b) => b.amount - a.amount);
 
   const topInflows = transactions
     .map((t) => ({

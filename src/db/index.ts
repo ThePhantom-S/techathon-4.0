@@ -1,5 +1,6 @@
 import pg from 'pg';
 import { PGlite } from '@electric-sql/pglite';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
@@ -9,6 +10,14 @@ import { DEFAULT_CONFIG, INITIAL_TRANSACTIONS, INITIAL_PAYABLES, INITIAL_EXPENSE
 import { IndustryDemoProfile, getIndustryDemoProfile } from '../engine/demoProfiles';
 
 dotenv.config();
+
+// ── Supabase Client Initialization ───────────────────────────────────────────
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://wnsfvbzdcszvswfytjnu.supabase.co';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Induc2Z2YnpkY3N6dnN3Znl0am51Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkwNDQ1NTcsImV4cCI6MjEwNDYyMDU1N30.rEPKiUXCp6uPulR-_m3fCNLK78lYsRGd59_pqwywJmc';
+
+export const supabase: SupabaseClient | null = (SUPABASE_URL && SUPABASE_ANON_KEY)
+  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
 
 // ── Business Profile JSON mirror (used when SQL persistence is unavailable) ──
 const BUSINESS_PROFILE_FILE = path.join(process.cwd(), 'flowshield_business_profile.json');
@@ -25,27 +34,35 @@ const DEFAULT_BUSINESS_PROFILE: BusinessProfile = {
   updatedAt: new Date().toISOString(),
 };
 
-dotenv.config();
-
 const { Pool } = pg;
 
 // ── Database Connection & Unified Query Runner ────────────────────────────────
-const pool = new Pool({
-  host: process.env.DB_HOST || '127.0.0.1',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  user: process.env.DB_USER || 'cashshock_user',
-  password: process.env.DB_PASSWORD || 'cashshock_password',
-  database: process.env.DB_NAME || 'cashshock_db',
-  max: 5,
-  connectionTimeoutMillis: 1500,
-});
+const poolConfig: pg.PoolConfig = process.env.DATABASE_URL
+  ? {
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      max: 10,
+      connectionTimeoutMillis: 5000,
+    }
+  : {
+      host: process.env.DB_HOST || '127.0.0.1',
+      port: parseInt(process.env.DB_PORT || '5432'),
+      user: process.env.DB_USER || 'cashshock_user',
+      password: process.env.DB_PASSWORD || 'cashshock_password',
+      database: process.env.DB_NAME || 'cashshock_db',
+      max: 5,
+      connectionTimeoutMillis: 2000,
+    };
+
+const pool = new Pool(poolConfig);
 
 let pgliteInstance: PGlite | null = null;
-let activeEngine: 'container' | 'pglite' | 'fallback' = 'pglite';
+let activeEngine: 'supabase' | 'container' | 'pglite' | 'fallback' = 'pglite';
 
 async function getOrCreatePGlite(): Promise<PGlite> {
   if (!pgliteInstance) {
-    pgliteInstance = new PGlite();
+    const pgDataDir = path.join(process.cwd(), '.pgdata');
+    pgliteInstance = new PGlite(pgDataDir);
   }
   return pgliteInstance;
 }
@@ -132,6 +149,19 @@ function mapProfileRow(row: any): BusinessProfile {
 }
 
 export async function getBusinessProfile(): Promise<BusinessProfile> {
+  if (activeEngine === 'supabase' && supabase) {
+    try {
+      const { data, error } = await supabase.from('business_profile').select('*').eq('id', 'shakti-config').single();
+      if (!error && data) {
+        const profile = mapProfileRow(data);
+        inMemoryProfile = { ...profile };
+        return profile;
+      }
+    } catch (sbErr) {
+      console.warn('getBusinessProfile Supabase read failed:', sbErr);
+    }
+  }
+
   try {
     const res = await dbQuery(`SELECT * FROM business_profile WHERE id = 'shakti-config'`);
     if (res?.rows?.[0]) {
@@ -176,6 +206,28 @@ export async function saveBusinessProfile(input: {
   // Mirror to JSON always (works in every engine mode)
   writeProfileToJson(next);
 
+  if (activeEngine === 'supabase' && supabase) {
+    try {
+      await supabase.from('business_profile').upsert({
+        id: next.id,
+        business_name: next.businessName,
+        industry_id: next.industryId,
+        currency: next.currency,
+        country: next.country,
+        cash_floor: next.cashFloor,
+        is_demo: next.isDemo,
+        updated_at: toSqlTimestamp(next.updatedAt),
+      });
+      await supabase.from('audit_logs').insert({
+        action: 'BUSINESS_PROFILE',
+        details: `Industry: ${next.industryId}, Business: ${next.businessName}`,
+      });
+      return next;
+    } catch (sbErr) {
+      console.warn('saveBusinessProfile Supabase write failed:', sbErr);
+    }
+  }
+
   try {
     const sqlCreatedAt = toSqlTimestamp(next.createdAt);
     const sqlUpdatedAt = toSqlTimestamp(next.updatedAt);
@@ -218,6 +270,35 @@ export async function setBusinessIndustry(industryId: IndustryId): Promise<Busin
 export async function switchDemoBusiness(industryId: string): Promise<{ profile: BusinessProfile; demo: IndustryDemoProfile } | null> {
   const demo = getIndustryDemoProfile(industryId);
   if (!demo) return null;
+
+  if (activeEngine === 'supabase' && supabase) {
+    try {
+      await supabase.from('transactions').delete().neq('id', '___none___');
+      await supabase.from('payables').delete().neq('id', '___none___');
+      await supabase.from('expenses').delete().neq('id', '___none___');
+      if (demo.transactions.length) await supabase.from('transactions').insert(demo.transactions);
+      if (demo.payables.length) await supabase.from('payables').insert(demo.payables);
+      if (demo.expenses.length) await supabase.from('expenses').insert(demo.expenses);
+      await supabase.from('configuration').update({
+        current_cash: demo.config.current_cash,
+        cash_floor: demo.config.cash_floor,
+        supplier_delay_days: demo.config.supplier_delay_days,
+      }).eq('id', 'shakti-config');
+      const profile = await saveBusinessProfile({
+        businessName: demo.businessName,
+        industryId: demo.industryId as IndustryId,
+        cashFloor: demo.config.cash_floor,
+        isDemo: true,
+      });
+      await supabase.from('audit_logs').insert({
+        action: 'SWITCH_DEMO',
+        details: `Industry: ${demo.industryId}, Business: ${demo.businessName}`,
+      });
+      return { profile, demo };
+    } catch (sbErr) {
+      console.warn('switchDemoBusiness Supabase error:', sbErr);
+    }
+  }
 
   await dbQuery(`DELETE FROM transactions`);
   await dbQuery(`DELETE FROM payables`);
@@ -265,6 +346,20 @@ export async function switchDemoBusiness(industryId: string): Promise<{ profile:
 
 // ── Database Initialization ──────────────────────────────────────────────
 export async function initDb() {
+  // 1. Check Supabase Cloud Database first if credentials available
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from('configuration').select('id').limit(1);
+      if (!error && data && data.length > 0) {
+        console.log('✅ Connected to Supabase Cloud Database (wnsfvbzdcszvswfytjnu)');
+        activeEngine = 'supabase';
+        return;
+      }
+    } catch (sbErr) {
+      console.warn('Supabase ping check error (falling back to local):', (sbErr as any)?.message || sbErr);
+    }
+  }
+
   if (process.env.VERCEL) {
     // In Vercel serverless, avoid TCP timeout to 127.0.0.1
     try {
@@ -474,6 +569,62 @@ export interface DbFinancials {
 }
 
 export async function getFinancials(): Promise<DbFinancials> {
+  if (activeEngine === 'supabase' && supabase) {
+    try {
+      const [confRes, txRes, payRes, expRes] = await Promise.all([
+        supabase.from('configuration').select('*').eq('id', 'shakti-config').single(),
+        supabase.from('transactions').select('*'),
+        supabase.from('payables').select('*'),
+        supabase.from('expenses').select('*'),
+      ]);
+
+      if (confRes.data) {
+        const conf = confRes.data;
+        const dbConfig: Config = {
+          current_cash: parseFloat(conf.current_cash),
+          cash_floor: parseFloat(conf.cash_floor),
+          forecast_weights: parseArray(conf.forecast_weights) as [number, number, number],
+          supplier_delay_days: parseInt(conf.supplier_delay_days),
+        };
+
+        const transactions: Transaction[] = (txRes.data || []).map((r: any) => ({
+          id: r.id,
+          date: formatDate(r.date),
+          customer: r.customer,
+          invoice_amount: parseFloat(r.invoice_amount),
+          expected_payment_date: formatDate(r.expected_payment_date),
+          collection_probability: parseFloat(r.collection_probability),
+          status: r.status as Transaction['status'],
+        }));
+
+        const payables: Payable[] = (payRes.data || []).map((r: any) => ({
+          id: r.id,
+          supplier: r.supplier,
+          amount: parseFloat(r.amount),
+          due_date: formatDate(r.due_date),
+          category: r.category,
+          status: r.status as Payable['status'],
+        }));
+
+        const expenses: Expense[] = (expRes.data || []).map((r: any) => ({
+          id: r.id,
+          date: formatDate(r.date),
+          category: r.category,
+          amount: parseFloat(r.amount),
+        }));
+
+        return {
+          config: dbConfig,
+          transactions,
+          payables,
+          expenses,
+        };
+      }
+    } catch (sbErr) {
+      console.warn('Supabase getFinancials error (falling back):', sbErr);
+    }
+  }
+
   try {
     const confRes = await dbQuery(`SELECT * FROM configuration WHERE id = 'shakti-config'`);
     const txRes = await dbQuery(`SELECT * FROM transactions`);
@@ -484,9 +635,9 @@ export async function getFinancials(): Promise<DbFinancials> {
     if (!conf) {
       return {
         config: DEFAULT_CONFIG,
-        transactions: INITIAL_TRANSACTIONS,
-        payables: INITIAL_PAYABLES,
-        expenses: INITIAL_EXPENSES,
+        transactions: [],
+        payables: [],
+        expenses: [],
       };
     }
 
@@ -525,22 +676,40 @@ export async function getFinancials(): Promise<DbFinancials> {
 
     return {
       config: dbConfig,
-      transactions: transactions.length ? transactions : INITIAL_TRANSACTIONS,
-      payables: payables.length ? payables : INITIAL_PAYABLES,
-      expenses: expenses.length ? expenses : INITIAL_EXPENSES,
+      transactions,
+      payables,
+      expenses,
     };
   } catch (err) {
     console.warn('getFinancials fallback triggered:', (err as any)?.message || err);
     return {
       config: DEFAULT_CONFIG,
-      transactions: INITIAL_TRANSACTIONS,
-      payables: INITIAL_PAYABLES,
-      expenses: INITIAL_EXPENSES,
+      transactions: [],
+      payables: [],
+      expenses: [],
     };
   }
 }
 
 export async function updateConfiguration(currentCash: number, cashFloor: number, delayDays: number) {
+  if (activeEngine === 'supabase' && supabase) {
+    try {
+      await supabase.from('configuration').update({
+        current_cash: currentCash,
+        cash_floor: cashFloor,
+        supplier_delay_days: delayDays,
+      }).eq('id', 'shakti-config');
+
+      await supabase.from('audit_logs').insert({
+        action: 'UPDATE_CONFIG',
+        details: `Cash: ${currentCash}, Floor: ${cashFloor}, Delay: ${delayDays}`,
+      });
+      return;
+    } catch (sbErr) {
+      console.warn('updateConfiguration Supabase write error:', sbErr);
+    }
+  }
+
   await dbQuery(`
     UPDATE configuration
     SET current_cash = $1, cash_floor = $2, supplier_delay_days = $3
@@ -559,6 +728,27 @@ export async function saveConnectedPlatformData(
   payables: Payable[],
   expenses?: Expense[],
 ) {
+  if (activeEngine === 'supabase' && supabase) {
+    try {
+      await supabase.from('transactions').delete().neq('id', '___none___');
+      await supabase.from('payables').delete().neq('id', '___none___');
+      if (expenses?.length) {
+        await supabase.from('expenses').delete().neq('id', '___none___');
+      }
+      await supabase.from('configuration').update({ current_cash: currentCash }).eq('id', 'shakti-config');
+      if (transactions.length) await supabase.from('transactions').insert(transactions);
+      if (payables.length) await supabase.from('payables').insert(payables);
+      if (expenses?.length) await supabase.from('expenses').insert(expenses);
+      await supabase.from('audit_logs').insert({
+        action: 'LIVE_SYNC',
+        details: `Connected account sync completed. Cash: ${currentCash}, Invoices: ${transactions.length}, Bills: ${payables.length}`,
+      });
+      return;
+    } catch (sbErr) {
+      console.warn('saveConnectedPlatformData Supabase error:', sbErr);
+    }
+  }
+
   await dbQuery(`DELETE FROM transactions`);
   await dbQuery(`DELETE FROM payables`);
   if (expenses?.length) {
@@ -601,6 +791,26 @@ export async function saveConnectedPlatformData(
 }
 
 export async function resetToBaseline() {
+  if (activeEngine === 'supabase' && supabase) {
+    try {
+      await supabase.from('transactions').delete().neq('id', '___none___');
+      await supabase.from('payables').delete().neq('id', '___none___');
+      await supabase.from('expenses').delete().neq('id', '___none___');
+      await supabase.from('configuration').update({
+        current_cash: DEFAULT_CONFIG.current_cash,
+        cash_floor: DEFAULT_CONFIG.cash_floor,
+        supplier_delay_days: DEFAULT_CONFIG.supplier_delay_days,
+      }).eq('id', 'shakti-config');
+      await supabase.from('transactions').insert(INITIAL_TRANSACTIONS);
+      await supabase.from('payables').insert(INITIAL_PAYABLES);
+      await supabase.from('expenses').insert(INITIAL_EXPENSES);
+      await supabase.from('audit_logs').insert({ action: 'RESET', details: 'Reset to baseline Shakti Electronics' });
+      return;
+    } catch (sbErr) {
+      console.warn('resetToBaseline Supabase error:', sbErr);
+    }
+  }
+
   await dbQuery(`DELETE FROM transactions`);
   await dbQuery(`DELETE FROM payables`);
   await dbQuery(`DELETE FROM expenses`);
@@ -624,6 +834,32 @@ export interface WhatsAppNotificationRecord {
 }
 
 export async function logWhatsAppNotification(record: WhatsAppNotificationRecord) {
+  if (activeEngine === 'supabase' && supabase) {
+    try {
+      await supabase.from('whatsapp_notifications').insert({
+        business_id: 'shakti-config',
+        phone_number: record.phoneNumber || null,
+        alert_type: record.alertType,
+        risk_level: record.riskLevel || null,
+        breach_probability: record.breachProbability !== undefined ? record.breachProbability : null,
+        message_id: record.messageId || null,
+        status: record.status,
+        error_message: record.errorMessage || null,
+      });
+
+      const details = record.status === 'SENT'
+        ? `WhatsApp ${record.alertType} sent (risk: ${record.riskLevel || 'n/a'}, breach prob: ${record.breachProbability !== undefined ? Math.round(record.breachProbability * 100) + '%' : 'n/a'})`
+        : `WhatsApp ${record.alertType} failed (risk: ${record.riskLevel || 'n/a'})`;
+      await supabase.from('audit_logs').insert({
+        action: 'WHATSAPP_' + record.status,
+        details,
+      });
+      return;
+    } catch (sbErr) {
+      console.warn('logWhatsAppNotification Supabase error:', sbErr);
+    }
+  }
+
   await dbQuery(`
     INSERT INTO whatsapp_notifications (
       business_id, phone_number, alert_type, risk_level, breach_probability,
@@ -650,6 +886,30 @@ export async function logWhatsAppNotification(record: WhatsAppNotificationRecord
 }
 
 export async function getRecentWhatsAppNotifications(limit = 20): Promise<WhatsAppNotificationRecord[]> {
+  if (activeEngine === 'supabase' && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('whatsapp_notifications')
+        .select('alert_type, risk_level, breach_probability, message_id, sent_at, status, error_message')
+        .order('id', { ascending: false })
+        .limit(limit);
+      if (!error && data) {
+        return data.map((r: any) => ({
+          alertType: r.alert_type,
+          phoneNumber: r.phone_number,
+          riskLevel: r.risk_level || undefined,
+          breachProbability: r.breach_probability !== null && r.breach_probability !== undefined ? parseFloat(r.breach_probability) : undefined,
+          messageId: r.message_id || undefined,
+          status: r.status as 'SENT' | 'FAILED',
+          errorMessage: r.error_message || undefined,
+          sentAt: r.sent_at,
+        }));
+      }
+    } catch (sbErr) {
+      console.warn('getRecentWhatsAppNotifications Supabase error:', sbErr);
+    }
+  }
+
   const res = await dbQuery(`
     SELECT alert_type, risk_level, breach_probability, message_id, sent_at, status, error_message
     FROM whatsapp_notifications

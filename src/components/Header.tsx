@@ -1,6 +1,7 @@
 import React from 'react';
-import { Search, Download, Building2, Sun, Moon, RefreshCw, LogOut, Menu } from 'lucide-react';
+import { Search, Download, Building2, Sun, Moon, RefreshCw, LogOut, Menu, User, ShieldCheck } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 import { IndustryIcon } from './IndustryIcon';
 
 export type DashboardSubTab = 'overview' | 'risk-map' | 'inflows' | 'outflows';
@@ -42,6 +43,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const { theme, toggleTheme } = useTheme();
   const isLight = theme === 'light';
+  const { user } = useAuth();
 
   const DASHBOARD_TABS: { id: DashboardSubTab; label: string }[] = [
     { id: 'overview', label: 'Overview' },
@@ -122,15 +124,42 @@ export const Header: React.FC<HeaderProps> = ({
           <Building2 className="w-3.5 h-3.5 text-[#22C55E] shrink-0" />
           <span className="flex flex-col items-start leading-tight">
             <span className="font-mono text-xs hidden xl:inline whitespace-nowrap">{businessName}</span>
-            {industryName && (
-              <span className="text-[9px] font-mono hidden xl:inline-flex items-center gap-1 whitespace-nowrap opacity-80">
-                <IndustryIcon icon={industryIcon} className="w-2.5 h-2.5 shrink-0" />
-                <span>{industryName}</span>
-              </span>
-            )}
           </span>
           <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E] shrink-0" />
         </button>
+
+        {/* User Profile / Supabase Status */}
+        {user && (
+          <div
+            className={`hidden md:flex items-center gap-2 px-2.5 py-1.5 rounded-full border text-xs font-medium whitespace-nowrap shrink-0 ${
+              isLight
+                ? 'bg-[#FAFAFA] border-[#EAEAEA] text-[#171717]'
+                : 'bg-[#0A0A0A] border-[#222222] text-[#EDEDED]'
+            }`}
+            title={`Logged in as ${user.email}`}
+          >
+            <div
+              className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                user.isDemo
+                  ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30'
+                  : 'bg-indigo-600 text-white'
+              }`}
+            >
+              {user.fullName ? user.fullName[0].toUpperCase() : (user.email ? user.email[0].toUpperCase() : 'U')}
+            </div>
+            <div className="flex flex-col items-start justify-center leading-none max-w-[120px] truncate">
+              <span className="text-[11px] font-semibold truncate">
+                {user.fullName || user.email?.split('@')[0]}
+              </span>
+              {user.isDemo && (
+                <span className="text-[9px] font-mono mt-0.5 opacity-60 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                  <span>Demo</span>
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Theme Toggle */}
         <button

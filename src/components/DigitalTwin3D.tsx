@@ -392,9 +392,6 @@ export const DigitalTwin3D: React.FC<DigitalTwin3DProps> = ({
       const hexColor = parseInt(node.color.replace('#', ''), 16);
       const group = buildNodeGeometry(node.kind, hexColor, hexColor);
       group.position.copy(pos);
-      // Every node model rotates gently, direction & speed vary per node
-      const spinDir = i % 2 === 0 ? 1 : -1;
-      nodeSpinSpeeds[node.id] = spinDir * (0.35 + (i % 3) * 0.12);
       scene.add(group);
       nodeGroups[node.id] = group;
 
@@ -536,25 +533,14 @@ export const DigitalTwin3D: React.FC<DigitalTwin3DProps> = ({
       animationFrameId = requestAnimationFrame(animate);
       const elapsedTime = clock.getElapsedTime();
 
-      // Every node model rotates gently around its own axis; spinning parts
-      // (gears) rotate about their own axis via userData spin markers.
+      // Shock pulse: the node being hit scales up smoothly
       Object.entries(nodeGroups).forEach(([id, group]) => {
-        group.rotation.y = elapsedTime * (nodeSpinSpeeds[id] ?? 0.45);
-
-        // Shock pulse: the node being hit scales up smoothly
         const pulseIdx = shockChain.indexOf(id);
         const pulsing = isSimulatingPulseRef.current && pulseStepRef.current === pulseIdx;
         const targetScale = pulsing ? 1.22 : 1;
         group.scale.x += (targetScale - group.scale.x) * 0.18;
         group.scale.y = group.scale.x;
         group.scale.z = group.scale.x;
-
-        group.traverse((child) => {
-          const spin = (child as THREE.Mesh).userData?.spin as { axis: 'x' | 'y' | 'z'; speed: number } | undefined;
-          if (spin && (child as THREE.Mesh).rotation) {
-            (child as THREE.Mesh).rotation[spin.axis] = elapsedTime * spin.speed;
-          }
-        });
       });
 
       // Orbiting coins around the cash reservoir

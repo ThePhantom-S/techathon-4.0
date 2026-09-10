@@ -1,0 +1,10 @@
+﻿type,date,entity,amount,status,category,extra
+balance,2026-10-01,HDFC Business Account,650000,,,
+transaction,2026-10-28,Delayed Client Payment,400000,DELAYED,Consulting,0.60
+transaction,2026-11-20,Quarterly Milestone Retainer,550000,PENDING,Services,0.85
+payable,2026-10-12,Urgent Raw Material Vendor,1450000,CRITICAL,Procurement,
+payable,2026-10-22,Equipment Lease Payment,350000,CRITICAL,Lease,
+payable,2026-11-02,Overdue Supplier Dues,600000,DUE,Procurement,
+expense,2026-10-05,Staff Salary Due,380000,,Payroll,
+expense,2026-10-15,Commercial Office Rent,140000,,Rent,
+expense,2026-11-05,Staff Salary Due,380000,,Payroll,
