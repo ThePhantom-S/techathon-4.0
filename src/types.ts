@@ -163,3 +163,213 @@ export interface VoiceQueryResponse {
   recommendedAction?: string;
   verifiedDataUsed: Record<string, any>;
 }
+
+// ── INDUSTRY-AWARE BUSINESS MODEL ────────────────────────────────────────────
+
+export type IndustryId =
+  | 'manufacturing'
+  | 'wholesale'
+  | 'retail'
+  | 'saas'
+  | 'consulting'
+  | 'restaurant'
+  | 'logistics'
+  | 'healthcare'
+  | 'construction'
+  | 'other';
+
+/** Engine knob an industry scenario control drives. All are additive no-ops by default. */
+export type EngineKnob =
+  | 'supplier_delay'        // config.supplier_delay_days
+  | 'procurement_reduction' // overrides.procurementReductionPercent
+  | 'term_extension'        // overrides.supplierTermExtensionDays
+  | 'customer_advance'      // overrides.customerAdvancePercent
+  | 'inflow_change'         // overrides.inflowMultiplier (1 + val/100)
+  | 'outflow_change'        // overrides.outflowMultiplier (1 + val/100)
+  | 'one_time_outflow'      // overrides.oneTimeOutflow = val × scale (lump commitment)
+  | 'one_time_inflow'       // overrides.oneTimeInflow = val × scale (lump inflow)
+  | 'recurring_outflow';    // overrides.recurringOutflowPerMonth = val × scale
+
+export interface IndustryScenario {
+  id: string;
+  title: string;
+  description: string;
+  iconType: 'clock' | 'box' | 'calendar' | 'zap' | 'trending' | 'users' | 'flame' | 'truck' | 'coin';
+  paramLabel: string;
+  paramUnit: string;
+  defaultValue: number;
+  min: number;
+  max: number;
+  step: number;
+  knob: EngineKnob;
+  /** Converts slider value into engine units (e.g. lakhs → rupees). */
+  scale?: number;
+}
+
+export type MiniatureNodeKind =
+  | 'supplier'
+  | 'inventory'
+  | 'operations'
+  | 'customer'
+  | 'cash'
+  | 'service'
+  | 'recurring'
+  | 'expense'
+  | 'generic';
+
+export interface IndustryMiniatureNode {
+  id: string;
+  label: string;
+  kind: MiniatureNodeKind;
+  color: string;      // hex string used for accents
+  detail: string;     // short sub-line shown on the 3D overlay card
+  description: string;
+}
+
+export interface IndustryMiniatureEdge {
+  from: string;
+  to: string;
+  kind: 'goods' | 'inflow' | 'outflow';
+}
+
+export interface IndustryMiniatureModel {
+  nodes: IndustryMiniatureNode[];
+  edges: IndustryMiniatureEdge[];
+  /** Node id order used for the shock propagation pulse. */
+  shockChain: string[];
+  /** Label of the primary shock control, e.g. "Supplier Lead Time". */
+  shockLabel: string;
+  /** Default shock intensity shown on the 3D control bar. */
+  defaultShockValue: number;
+  shockMax: number;
+}
+
+export type KpiKind =
+  | 'currentCash'
+  | 'minCash'
+  | 'breachProb'
+  | 'p10'
+  | 'p50'
+  | 'p90'
+  | 'dio'
+  | 'dso'
+  | 'dpo'
+  | 'ccc'
+  | 'totalAR'
+  | 'totalAP'
+  | 'topOutflow'
+  | 'topInflow'
+  | 'payrollMonthly'
+  | 'runway'
+  | 'topOutflowShare'
+  | 'dailySales'
+  | 'commitmentExposure';
+
+export interface IndustryKpi {
+  id: string;
+  label: string;
+  description: string;
+  kind: KpiKind;
+  format: 'inr' | 'days' | 'pct' | 'plain';
+  /** Used by format 'inr' to render as ₹L vs raw. */
+  inLakhs?: boolean;
+}
+
+export interface IndustryRecommendation {
+  id: string;         // matches engine counterfactual id or alternative id
+  title: string;
+  action: string;     // concrete industry-specific action text
+  detail: string;
+}
+
+export interface IndustrySignalRule {
+  id: string;
+  label: string;
+  impactTemplate: string; // template with {amount} placeholder
+}
+
+export interface IndustryProfile {
+  id: IndustryId;
+  name: string;
+  description: string;
+  icon: string;
+  category: string;
+  primaryEntities: string[];
+  keyDrivers: string[];
+  kpis: IndustryKpi[];
+  riskDrivers: { id: string; label: string; signal: string; impact: string }[];
+  scenarioTypes: IndustryScenario[];
+  decisionTypes: { id: string; label: string; question: string; amountHint: number }[];
+  safeToCommit: {
+    entityLabel: string;         // e.g. "raw-material purchase"
+    questionTemplate: string;    // "Can we safely commit {amount} to this {entity}?"
+    defaultAmount: number;
+    amountHint: number;
+  };
+  cashFlowDrivers: { inflow: string[]; outflow: string[] };
+  aiContext: string;
+  miniatureModel: IndustryMiniatureModel;
+  recommendations: IndustryRecommendation[];
+  signalRules: IndustrySignalRule[];
+}
+
+export interface BusinessProfile {
+  id: string;
+  businessName: string;
+  industryId: IndustryId;
+  currency: string;
+  country: string;
+  cashFloor: number;
+  isDemo: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FinancialSignal {
+  id: string;
+  severity: 'CRITICAL' | 'WARNING' | 'INFO';
+  title: string;
+  message: string;
+  impact: string;      // e.g. "₹4.2L of expected cash may be delayed."
+  liquidityImpact: 'High' | 'Medium' | 'Low';
+  industryId: IndustryId;
+}
+
+export interface SafeToCommitInput {
+  config: Config;
+  transactions: Transaction[];
+  payables: Payable[];
+  expenses: Expense[];
+  inventory: InventoryItem[];
+  suppliers: Supplier[];
+  historicalSales: Sale[];
+  commitmentAmount: number;
+  commitmentLabel: string;
+  industryId: IndustryId;
+}
+
+export type SafeToCommitVerdict = 'SAFE' | 'MARGINAL' | 'UNSAFE';
+
+export interface SafeToCommitAlternative {
+  id: string;
+  title: string;
+  detail: string;
+  minCash: number;
+  breachProbability: number;
+  verdict: SafeToCommitVerdict;
+}
+
+export interface SafeToCommitResult {
+  verdict: SafeToCommitVerdict;
+  currentCash: number;
+  cashFloor: number;
+  expectedMinCash: number;
+  baselineMinCash: number;
+  cashImpact: number;
+  liquidityRisk: number;         // breach probability after commitment
+  breachDate: string | null;
+  safeBoundary: number;          // largest commitment that keeps cash safe
+  drivers: string[];
+  alternatives: SafeToCommitAlternative[];
+}
+

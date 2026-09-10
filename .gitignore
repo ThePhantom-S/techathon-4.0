@@ -16,6 +16,7 @@ pgdata_local/
 # Local runtime state
 flowshield_connector_state.json
 flowshield_whatsapp_settings.json
+flowshield_business_profile.json
 
 # OS files
 Thumbs.db

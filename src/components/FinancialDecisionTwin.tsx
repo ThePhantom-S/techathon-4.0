@@ -6,8 +6,9 @@ import {
   Zap,
   ChevronRight,
 } from 'lucide-react';
-import { CounterfactualOutcome, DriverAnalysisResult } from '../types';
+import { CounterfactualOutcome, DriverAnalysisResult, IndustryProfile } from '../types';
 import { formatINR } from '../engine/calculator';
+import { industryRecommendationTitle } from '../config/industries';
 import { DigitalTwin3D } from './DigitalTwin3D';
 import { useTheme } from '../context/ThemeContext';
 
@@ -25,6 +26,7 @@ interface FinancialDecisionTwinProps {
   onOpenDriverAnalysis: () => void;
   driverAnalysis?: DriverAnalysisResult;
   show3D?: boolean;
+  industryProfile?: IndustryProfile;
 }
 
 export const FinancialDecisionTwin: React.FC<FinancialDecisionTwinProps> = ({
@@ -41,6 +43,7 @@ export const FinancialDecisionTwin: React.FC<FinancialDecisionTwinProps> = ({
   onOpenDriverAnalysis,
   driverAnalysis,
   show3D = false,
+  industryProfile,
 }) => {
   const { theme } = useTheme();
   const isLight = theme === 'light';
@@ -181,61 +184,72 @@ export const FinancialDecisionTwin: React.FC<FinancialDecisionTwinProps> = ({
             activeCounterfactual={activeCounterfactual}
             onSelectCounterfactual={onSelectCounterfactual}
             onOpenDriverAnalysis={onOpenDriverAnalysis}
-
+            driverAnalysis={driverAnalysis}
+            industryProfile={industryProfile}
           />
 
-          {/* Event Propagation Cascade Diagram */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-2.5">
-            <div className={`border rounded-xl p-3 text-xs ${
-              isLight ? 'bg-[#FAFAFA] border-[#EAEAEA]' : 'bg-[#0A0A0A] border-[#222222]'
-            }`}>
-              <div className="text-[10px] font-mono text-[#EAB308] font-medium uppercase mb-0.5">01 Shock</div>
-              <div className="font-medium">Supplier Lead Time</div>
-              <div className="font-mono text-xs text-[#EAB308] mt-1 font-semibold">+{supplierDelayDays} DAYS</div>
-            </div>
-
-            <div className={`border rounded-xl p-3 text-xs ${
-              isLight ? 'bg-[#FAFAFA] border-[#EAEAEA]' : 'bg-[#0A0A0A] border-[#222222]'
-            }`}>
-              <div className={`text-[10px] font-mono uppercase mb-0.5 ${isLight ? 'text-[#8A8A8A]' : 'text-[#71717A]'}`}>02 Impact</div>
-              <div className="font-medium">Inventory Delivery</div>
-              <div className="font-mono text-[11px] text-[#A1A1AA] mt-1">Arrives Late</div>
-            </div>
-
-            <div className={`border rounded-xl p-3 text-xs ${
-              isLight ? 'bg-[#FAFAFA] border-[#EAEAEA]' : 'bg-[#0A0A0A] border-[#222222]'
-            }`}>
-              <div className={`text-[10px] font-mono uppercase mb-0.5 ${isLight ? 'text-[#8A8A8A]' : 'text-[#71717A]'}`}>03 Operational</div>
-              <div className="font-medium">Production Assembly</div>
-              <div className="font-mono text-[11px] text-[#A1A1AA] mt-1">Delayed SKU-900</div>
-            </div>
-
-            <div className={`border rounded-xl p-3 text-xs ${
-              isLight ? 'bg-[#FAFAFA] border-[#EAEAEA]' : 'bg-[#0A0A0A] border-[#222222]'
-            }`}>
-              <div className={`text-[10px] font-mono uppercase mb-0.5 ${isLight ? 'text-[#8A8A8A]' : 'text-[#71717A]'}`}>04 Commercial</div>
-              <div className="font-medium">Customer Billing</div>
-              <div className="font-mono text-[11px] text-[#A1A1AA] mt-1">Receivables Shifted</div>
-            </div>
-
-            <div className={`border rounded-xl p-3 text-xs ${
-              minCash < cashFloor ? 'border-[#EF4444]/40 bg-[#EF4444]/10' : isLight ? 'bg-[#FAFAFA] border-[#EAEAEA]' : 'bg-[#0A0A0A] border-[#222222]'
-            }`}>
-              <div className="text-[10px] font-mono text-[#EF4444] font-medium uppercase mb-0.5">05 Financial</div>
-              <div className="font-medium">Cash Deficit</div>
-              <div className="font-mono text-xs text-[#EF4444] font-semibold mt-1">
-                {minCash < cashFloor ? formatINR(minCash) : 'Safe Buffer'}
+          {/* Event Propagation Cascade Diagram (built from the industry shock chain) */}
+          {(() => {
+            const chain = industryProfile?.miniatureModel?.shockChain || [];
+            const chainNodes = chain.map((id) => industryProfile?.miniatureModel?.nodes.find((n) => n.id === id)).filter(Boolean);
+            const kindLabel = (kind?: string) => {
+              switch (kind) {
+                case 'supplier': return 'Shock Source';
+                case 'inventory': return 'Inventory Impact';
+                case 'operations': return 'Operational Impact';
+                case 'service': return 'Service Impact';
+                case 'recurring': return 'Revenue Impact';
+                case 'customer': return 'Commercial Impact';
+                case 'expense': return 'Cost Impact';
+                case 'cash': return 'Financial Impact';
+                default: return 'Business Impact';
+              }
+            };
+            const boxes = chainNodes.map((node, i) => ({
+              idx: i + 1,
+              label: node!.label,
+              kind: node!.kind,
+            }));
+            if (boxes.length) {
+              boxes[boxes.length - 1] = {
+                ...boxes[boxes.length - 1],
+                label: hasBreach ? 'Breach Trigger' : 'Cash Position',
+              };
+            }
+            return (
+              <div className={`grid gap-2.5 ${
+                boxes.length <= 4 ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-4' : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6'
+              }`}>
+                {boxes.map((box, i) => {
+                  const isLast = i === boxes.length - 1;
+                  const isFinancial = box.kind === 'cash' || isLast;
+                  return (
+                    <div key={box.idx} className={`border rounded-xl p-3 text-xs ${
+                      isFinancial && (minCash < cashFloor || hasBreach)
+                        ? 'border-[#EF4444]/40 bg-[#EF4444]/10'
+                        : isLight ? 'bg-[#FAFAFA] border-[#EAEAEA]' : 'bg-[#0A0A0A] border-[#222222]'
+                    }`}>
+                      <div className={`text-[10px] font-mono uppercase mb-0.5 ${
+                        i === 0 ? 'text-[#EAB308] font-medium' : isFinancial ? 'text-[#EF4444] font-medium' : isLight ? 'text-[#8A8A8A]' : 'text-[#71717A]'
+                      }`}>
+                        {String(box.idx).padStart(2, '0')} {i === 0 ? 'Shock' : kindLabel(box.kind)}
+                      </div>
+                      <div className="font-medium">{box.label}</div>
+                      <div className={`font-mono text-xs mt-1 font-semibold ${
+                        i === 0 ? 'text-[#EAB308]' : isFinancial ? 'text-[#EF4444]' : 'text-[#A1A1AA]'
+                      }`}>
+                        {i === 0
+                          ? `+${supplierDelayDays} DAYS`
+                          : isLast
+                            ? hasBreach ? breachDays : formatINR(minCash)
+                            : '•'}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
-
-            <div className={`border rounded-xl p-3 text-xs ${
-              hasBreach ? 'border-[#EF4444]/40 bg-[#EF4444]/10' : isLight ? 'bg-[#FAFAFA] border-[#EAEAEA]' : 'bg-[#0A0A0A] border-[#222222]'
-            }`}>
-              <div className="text-[10px] font-mono text-[#EF4444] font-medium uppercase mb-0.5">06 Outcome</div>
-              <div className="font-medium">Breach Trigger</div>
-              <div className="font-mono text-xs text-[#EF4444] font-semibold mt-1">{breachDays}</div>
-            </div>
-          </div>
+            );
+          })()}
         </>
       )}
 
@@ -340,7 +354,9 @@ export const FinancialDecisionTwin: React.FC<FinancialDecisionTwinProps> = ({
                   <div className="flex items-start justify-between gap-3 font-mono">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-medium">{cf.title}</span>
+                        <span className="font-medium">
+                          {industryProfile ? industryRecommendationTitle(industryProfile, cf.id, cf.title) : cf.title}
+                        </span>
                         {cf.id === 'cf-3' && (
                           <span className="text-[10px] px-2 py-0.5 rounded-full border border-[#22C55E]/30 bg-[#22C55E]/10 text-[#22C55E]">
                             Recommended

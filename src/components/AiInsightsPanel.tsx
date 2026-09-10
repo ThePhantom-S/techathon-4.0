@@ -43,6 +43,8 @@ interface AiInsightsPanelProps {
   transactions?: any[];
   payables?: any[];
   activeSubTab?: string;
+  industryId?: string;
+  industryName?: string;
 }
 
 export const AiInsightsPanel: React.FC<AiInsightsPanelProps> = ({
@@ -52,6 +54,8 @@ export const AiInsightsPanel: React.FC<AiInsightsPanelProps> = ({
   transactions = [],
   payables = [],
   activeSubTab,
+  industryId,
+  industryName,
 }) => {
   const { theme } = useTheme();
   const isLight = theme === 'light';
@@ -97,6 +101,29 @@ export const AiInsightsPanel: React.FC<AiInsightsPanelProps> = ({
   const [loadingAnomalies, setLoadingAnomalies] = useState(false);
   const [expandedAnomaly, setExpandedAnomaly] = useState<number | null>(null);
   const [showAllAnomalies, setShowAllAnomalies] = useState(false);
+
+  // ── Deterministic industry-aware financial signals (engine computed) ──
+  const [signals, setSignals] = useState<any[]>([]);
+  const [loadingSignals, setLoadingSignals] = useState(false);
+  const [signalIndustry, setSignalIndustry] = useState<string | null>(null);
+
+  const fetchSignals = useCallback(async () => {
+    setLoadingSignals(true);
+    try {
+      const res = await fetch('/api/signals');
+      const data = await res.json();
+      setSignals(data.signals || []);
+      setSignalIndustry(data.industryName || null);
+    } catch (e) {
+      console.error('Failed to fetch signals:', e);
+    } finally {
+      setLoadingSignals(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSignals();
+  }, [fetchSignals]);
 
   // Extract verified data from simulation result
   const currentCash = simulationResult?.dailyPoints?.[0]?.cash || 2500000;
@@ -230,18 +257,19 @@ export const AiInsightsPanel: React.FC<AiInsightsPanelProps> = ({
             </h2>
             <p className={`text-xs font-mono ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
               Liquidity intelligence briefs &amp; financial signal detection
+              {industryName && <span className="ml-1.5 text-indigo-500 font-bold">· {industryName}</span>}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => { fetchBriefings(); fetchAnomalies(); }}
-            disabled={loadingBriefings || loadingAnomalies}
+            onClick={() => { fetchBriefings(); fetchAnomalies(); fetchSignals(); }}
+            disabled={loadingBriefings || loadingAnomalies || loadingSignals}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono border transition-colors cursor-pointer ${
               isLight ? 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800'
             }`}
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${(loadingBriefings || loadingAnomalies) ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${(loadingBriefings || loadingAnomalies || loadingSignals) ? 'animate-spin' : ''}`} />
             Refresh Intelligence
           </button>
         </div>
@@ -346,6 +374,13 @@ export const AiInsightsPanel: React.FC<AiInsightsPanelProps> = ({
             <span className={`text-sm font-mono font-bold uppercase tracking-wider ${isLight ? 'text-slate-600' : 'text-zinc-400'}`}>
               Financial Signal Detection
             </span>
+            {signalIndustry && (
+              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                isLight ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
+              }`}>
+                {signalIndustry}
+              </span>
+            )}
             {anomalySummary && (
               <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${getRiskColor(overallRisk)}`}>
                 {overallRisk} Risk
@@ -353,16 +388,71 @@ export const AiInsightsPanel: React.FC<AiInsightsPanelProps> = ({
             )}
           </div>
           <button
-            onClick={fetchAnomalies}
-            disabled={loadingAnomalies}
+            onClick={() => { fetchAnomalies(); fetchSignals(); }}
+            disabled={loadingAnomalies || loadingSignals}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-mono border transition-colors cursor-pointer ${
               isLight ? 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800'
             }`}
           >
-            <RefreshCw className={`w-3 h-3 ${loadingAnomalies ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3 h-3 ${(loadingAnomalies || loadingSignals) ? 'animate-spin' : ''}`} />
             Scan Signals
           </button>
         </div>
+
+        {/* ── ENGINE-VERIFIED SIGNALS (industry-aware, deterministic) ── */}
+        {loadingSignals && signals.length === 0 ? (
+          <div className={`rounded-xl border p-5 mb-3 text-center ${isLight ? 'bg-white border-slate-200' : 'bg-zinc-900 border-zinc-800'}`}>
+            <div className="flex items-center justify-center gap-2">
+              <Brain className="w-4 h-4 text-indigo-500 animate-pulse" />
+              <span className={`text-[11px] font-mono ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
+                Running engine signal scan...
+              </span>
+            </div>
+          </div>
+        ) : signals.length > 0 ? (
+          <div className="space-y-2 mb-4">
+            {signals.map((sig, idx) => {
+              const severityCls =
+                sig.severity === 'CRITICAL'
+                  ? isLight ? 'border-red-200 bg-red-50/60' : 'border-red-500/30 bg-red-500/10'
+                  : sig.severity === 'WARNING'
+                    ? isLight ? 'border-amber-200 bg-amber-50/60' : 'border-amber-500/30 bg-amber-500/10'
+                    : isLight ? 'border-blue-200 bg-blue-50/60' : 'border-blue-500/30 bg-blue-500/10';
+              return (
+                <div key={idx} className={`rounded-xl border p-3.5 ${severityCls}`}>
+                  <div className="flex items-start gap-2.5">
+                    <span className="text-base leading-none mt-0.5 shrink-0">
+                      {sig.severity === 'CRITICAL' ? '🔴' : sig.severity === 'WARNING' ? '🟠' : '🟡'}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-xs font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>SIGNAL</span>
+                        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full border ${getRiskColor(sig.severity)}`}>
+                          {sig.severity}
+                        </span>
+                        <span className={`text-[11px] font-semibold ${isLight ? 'text-slate-600' : 'text-zinc-300'}`}>
+                          {sig.title}
+                        </span>
+                      </div>
+                      <p className={`text-[11px] mt-1 leading-relaxed ${isLight ? 'text-slate-600' : 'text-zinc-400'}`}>
+                        {sig.message}
+                      </p>
+                      <div className={`mt-1.5 text-[11px] font-mono ${isLight ? 'text-slate-700' : 'text-zinc-300'}`}>
+                        <span className="font-bold">Impact:</span> {sig.impact}
+                      </div>
+                      <div className={`mt-1 text-[10px] font-mono font-bold uppercase tracking-wider ${
+                        sig.liquidityImpact === 'High' ? 'text-red-500' : sig.liquidityImpact === 'Medium' ? 'text-amber-500' : 'text-emerald-500'
+                      }`}>
+                        Potential liquidity impact: {sig.liquidityImpact}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+
 
         {loadingAnomalies && anomalies.length === 0 ? (
           <div className={`rounded-xl border p-6 text-center ${isLight ? 'bg-white border-slate-200' : 'bg-zinc-900 border-zinc-800'}`}>

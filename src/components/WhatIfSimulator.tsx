@@ -19,22 +19,27 @@ import {
   Clock,
   BarChart3,
   Calendar,
+  Users,
+  Flame,
+  Truck,
+  Coins,
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { runSimulationEngine, formatINR } from '../engine/calculator';
-import { Config, Transaction, Payable, Expense, SimulationResult } from '../types';
+import { Config, EngineKnob, IndustryProfile, Transaction, Payable, Expense, SimulationResult } from '../types';
 import {
   demoInventory,
   demoSuppliers,
   demoSales,
 } from '../engine/sampleData';
+import { SafeToCommitPanel } from './SafeToCommitPanel';
 
-// ── Scenario Definitions ────────────────────────────────────────────────────
+// ── Scenario Definitions (built from the industry profile) ─────────────────
 interface ScenarioDef {
   id: string;
   title: string;
   description: string;
-  iconType: 'clock' | 'box' | 'calendar' | 'zap';
+  iconType: string;
   themeColor: {
     icon: string;
     iconBg: string;
@@ -56,108 +61,89 @@ interface ScenarioDef {
   buildConfig: (config: Config, val: number) => Config;
 }
 
-const SCENARIOS: ScenarioDef[] = [
-  {
-    id: 'supplier-delay',
-    title: 'Supplier Delay',
-    description: 'Increase or decrease supplier lead time to test delivery shock impact',
-    iconType: 'clock',
-    themeColor: {
-      icon: 'text-amber-500 dark:text-amber-400',
-      iconBg: 'bg-amber-500/10',
-      iconBorder: 'border-amber-500/25',
-      activeBorder: 'border-amber-500 ring-2 ring-amber-500/20',
-      activeBgLight: 'bg-amber-50/70 border-amber-300 shadow-md',
-      activeBgDark: 'bg-amber-500/10 border-amber-500/40 shadow-lg',
-      badgeText: 'text-amber-700 dark:text-amber-300',
-      badgeBg: 'bg-amber-500/10 border-amber-500/20',
-    },
-    paramLabel: 'Supplier Lead Time',
-    paramUnit: 'days',
-    currentValue: (config) => config.supplier_delay_days,
-    defaultValue: 20,
-    min: 0,
-    max: 60,
-    step: 1,
-    buildOverrides: () => undefined,
-    buildConfig: (config, val) => ({ ...config, supplier_delay_days: val }),
+// Cycling palette — keeps the original 4 manufacturing scenarios identical.
+const PALETTE = ['amber', 'rose', 'blue', 'emerald', 'orange', 'purple', 'teal', 'indigo'] as const;
+const COLOR_CLASSES: Record<string, { icon: string; iconBg: string; iconBorder: string; activeBorder: string; activeBgLight: string; activeBgDark: string; badgeText: string; badgeBg: string }> = {
+  amber: {
+    icon: 'text-amber-500 dark:text-amber-400', iconBg: 'bg-amber-500/10', iconBorder: 'border-amber-500/25',
+    activeBorder: 'border-amber-500 ring-2 ring-amber-500/20', activeBgLight: 'bg-amber-50/70 border-amber-300 shadow-md',
+    activeBgDark: 'bg-amber-500/10 border-amber-500/40 shadow-lg', badgeText: 'text-amber-700 dark:text-amber-300', badgeBg: 'bg-amber-500/10 border-amber-500/20',
   },
-  {
-    id: 'procurement-reduction',
-    title: 'Procurement Reduction',
-    description: 'Reduce procurement spend to test cost-cutting impact on cash',
-    iconType: 'box',
-    themeColor: {
-      icon: 'text-rose-500 dark:text-rose-400',
-      iconBg: 'bg-rose-500/10',
-      iconBorder: 'border-rose-500/25',
-      activeBorder: 'border-rose-500 ring-2 ring-rose-500/20',
-      activeBgLight: 'bg-rose-50/70 border-rose-300 shadow-md',
-      activeBgDark: 'bg-rose-500/10 border-rose-500/40 shadow-lg',
-      badgeText: 'text-rose-700 dark:text-rose-300',
-      badgeBg: 'bg-rose-500/10 border-rose-500/20',
-    },
-    paramLabel: 'Procurement Cut',
-    paramUnit: '%',
-    currentValue: () => 0,
-    defaultValue: 20,
-    min: 0,
-    max: 50,
-    step: 5,
-    buildOverrides: (val) => ({ procurementReductionPercent: val }),
-    buildConfig: (config) => config,
+  rose: {
+    icon: 'text-rose-500 dark:text-rose-400', iconBg: 'bg-rose-500/10', iconBorder: 'border-rose-500/25',
+    activeBorder: 'border-rose-500 ring-2 ring-rose-500/20', activeBgLight: 'bg-rose-50/70 border-rose-300 shadow-md',
+    activeBgDark: 'bg-rose-500/10 border-rose-500/40 shadow-lg', badgeText: 'text-rose-700 dark:text-rose-300', badgeBg: 'bg-rose-500/10 border-rose-500/20',
   },
-  {
-    id: 'supplier-term-extension',
-    title: 'Supplier Term Extension',
-    description: 'Extend payment terms with suppliers to delay cash outflows',
-    iconType: 'calendar',
-    themeColor: {
-      icon: 'text-blue-500 dark:text-blue-400',
-      iconBg: 'bg-blue-500/10',
-      iconBorder: 'border-blue-500/25',
-      activeBorder: 'border-blue-500 ring-2 ring-blue-500/20',
-      activeBgLight: 'bg-blue-50/70 border-blue-300 shadow-md',
-      activeBgDark: 'bg-blue-500/10 border-blue-500/40 shadow-lg',
-      badgeText: 'text-blue-700 dark:text-blue-300',
-      badgeBg: 'bg-blue-500/10 border-blue-500/20',
-    },
-    paramLabel: 'Term Extension',
-    paramUnit: 'days',
-    currentValue: () => 0,
-    defaultValue: 15,
-    min: 0,
-    max: 45,
-    step: 1,
-    buildOverrides: (val) => ({ supplierTermExtensionDays: val }),
-    buildConfig: (config) => config,
+  blue: {
+    icon: 'text-blue-500 dark:text-blue-400', iconBg: 'bg-blue-500/10', iconBorder: 'border-blue-500/25',
+    activeBorder: 'border-blue-500 ring-2 ring-blue-500/20', activeBgLight: 'bg-blue-50/70 border-blue-300 shadow-md',
+    activeBgDark: 'bg-blue-500/10 border-blue-500/40 shadow-lg', badgeText: 'text-blue-700 dark:text-blue-300', badgeBg: 'bg-blue-500/10 border-blue-500/20',
   },
-  {
-    id: 'customer-advance',
-    title: 'Customer Advance',
-    description: 'Request upfront payment from customers to boost immediate cash',
-    iconType: 'zap',
-    themeColor: {
-      icon: 'text-emerald-500 dark:text-emerald-400',
-      iconBg: 'bg-emerald-500/10',
-      iconBorder: 'border-emerald-500/25',
-      activeBorder: 'border-emerald-500 ring-2 ring-emerald-500/20',
-      activeBgLight: 'bg-emerald-50/70 border-emerald-300 shadow-md',
-      activeBgDark: 'bg-emerald-500/10 border-emerald-500/40 shadow-lg',
-      badgeText: 'text-emerald-700 dark:text-emerald-300',
-      badgeBg: 'bg-emerald-500/10 border-emerald-500/20',
-    },
-    paramLabel: 'Advance Payment',
-    paramUnit: '%',
-    currentValue: () => 0,
-    defaultValue: 30,
-    min: 0,
-    max: 50,
-    step: 5,
-    buildOverrides: (val) => ({ customerAdvancePercent: val }),
-    buildConfig: (config) => config,
+  emerald: {
+    icon: 'text-emerald-500 dark:text-emerald-400', iconBg: 'bg-emerald-500/10', iconBorder: 'border-emerald-500/25',
+    activeBorder: 'border-emerald-500 ring-2 ring-emerald-500/20', activeBgLight: 'bg-emerald-50/70 border-emerald-300 shadow-md',
+    activeBgDark: 'bg-emerald-500/10 border-emerald-500/40 shadow-lg', badgeText: 'text-emerald-700 dark:text-emerald-300', badgeBg: 'bg-emerald-500/10 border-emerald-500/20',
   },
-];
+  orange: {
+    icon: 'text-orange-500 dark:text-orange-400', iconBg: 'bg-orange-500/10', iconBorder: 'border-orange-500/25',
+    activeBorder: 'border-orange-500 ring-2 ring-orange-500/20', activeBgLight: 'bg-orange-50/70 border-orange-300 shadow-md',
+    activeBgDark: 'bg-orange-500/10 border-orange-500/40 shadow-lg', badgeText: 'text-orange-700 dark:text-orange-300', badgeBg: 'bg-orange-500/10 border-orange-500/20',
+  },
+  purple: {
+    icon: 'text-purple-500 dark:text-purple-400', iconBg: 'bg-purple-500/10', iconBorder: 'border-purple-500/25',
+    activeBorder: 'border-purple-500 ring-2 ring-purple-500/20', activeBgLight: 'bg-purple-50/70 border-purple-300 shadow-md',
+    activeBgDark: 'bg-purple-500/10 border-purple-500/40 shadow-lg', badgeText: 'text-purple-700 dark:text-purple-300', badgeBg: 'bg-purple-500/10 border-purple-500/20',
+  },
+  teal: {
+    icon: 'text-teal-500 dark:text-teal-400', iconBg: 'bg-teal-500/10', iconBorder: 'border-teal-500/25',
+    activeBorder: 'border-teal-500 ring-2 ring-teal-500/20', activeBgLight: 'bg-teal-50/70 border-teal-300 shadow-md',
+    activeBgDark: 'bg-teal-500/10 border-teal-500/40 shadow-lg', badgeText: 'text-teal-700 dark:text-teal-300', badgeBg: 'bg-teal-500/10 border-teal-500/20',
+  },
+  indigo: {
+    icon: 'text-indigo-500 dark:text-indigo-400', iconBg: 'bg-indigo-500/10', iconBorder: 'border-indigo-500/25',
+    activeBorder: 'border-indigo-500 ring-2 ring-indigo-500/20', activeBgLight: 'bg-indigo-50/70 border-indigo-300 shadow-md',
+    activeBgDark: 'bg-indigo-500/10 border-indigo-500/40 shadow-lg', badgeText: 'text-indigo-700 dark:text-indigo-300', badgeBg: 'bg-indigo-500/10 border-indigo-500/20',
+  },
+};
+
+const buildOverridesForKnob = (knob: EngineKnob, val: number, scale: number): any => {
+  switch (knob) {
+    case 'procurement_reduction': return { procurementReductionPercent: val };
+    case 'term_extension': return { supplierTermExtensionDays: val };
+    case 'customer_advance': return { customerAdvancePercent: val };
+    case 'inflow_change': return { inflowMultiplier: 1 + val / 100 };
+    case 'outflow_change': return { outflowMultiplier: 1 + val / 100 };
+    case 'one_time_outflow': return { oneTimeOutflow: val * scale };
+    case 'one_time_inflow': return { oneTimeInflow: val * scale };
+    case 'recurring_outflow': return { recurringOutflowPerMonth: val * scale };
+    case 'supplier_delay':
+    default: return undefined;
+  }
+};
+
+/** Builds the industry-specific scenario list from the industry profile. */
+const buildScenarioDefs = (profile: IndustryProfile): ScenarioDef[] => {
+  return profile.scenarioTypes.map((s, i) => {
+    const color = COLOR_CLASSES[PALETTE[i % PALETTE.length]];
+    return {
+      id: s.id,
+      title: s.title,
+      description: s.description,
+      iconType: s.iconType,
+      themeColor: color,
+      paramLabel: s.paramLabel,
+      paramUnit: s.paramUnit,
+      currentValue: s.knob === 'supplier_delay' ? (config: Config) => config.supplier_delay_days : () => 0,
+      defaultValue: s.defaultValue,
+      min: s.min,
+      max: s.max,
+      step: s.step,
+      buildOverrides: (val: number) => buildOverridesForKnob(s.knob, val, s.scale || 1),
+      buildConfig: (config: Config, val: number) =>
+        s.knob === 'supplier_delay' ? { ...config, supplier_delay_days: val } : config,
+    };
+  });
+};
 
 // ── Props ───────────────────────────────────────────────────────────────────
 interface WhatIfSimulatorProps {
@@ -167,6 +153,7 @@ interface WhatIfSimulatorProps {
   expenses: Expense[];
   currentSimulationResult: SimulationResult;
   onVisualizeIn3D: (scenarioId: string, paramValue: number, whatIfResult: SimulationResult) => void;
+  industryProfile: IndustryProfile;
 }
 
 export const WhatIfSimulator: React.FC<WhatIfSimulatorProps> = ({
@@ -176,6 +163,7 @@ export const WhatIfSimulator: React.FC<WhatIfSimulatorProps> = ({
   expenses,
   currentSimulationResult,
   onVisualizeIn3D,
+  industryProfile,
 }) => {
   const { theme } = useTheme();
   const isLight = theme === 'light';
@@ -190,7 +178,9 @@ export const WhatIfSimulator: React.FC<WhatIfSimulatorProps> = ({
     { scenario: ScenarioDef; value: number; result: SimulationResult }[]
   >([]);
 
-  const selectedScenario = SCENARIOS.find((s) => s.id === selectedScenarioId);
+  const scenarios = useMemo(() => buildScenarioDefs(industryProfile), [industryProfile]);
+
+  const selectedScenario = scenarios.find((s) => s.id === selectedScenarioId);
 
   // ── Current baseline values ─────────────────────────────────────────────
   const baseline = currentSimulationResult;
@@ -262,7 +252,7 @@ export const WhatIfSimulator: React.FC<WhatIfSimulatorProps> = ({
 
     setTimeout(() => {
       try {
-        const results = SCENARIOS.map((scenario) => {
+        const results = scenarios.map((scenario) => {
           const modifiedConfig = scenario.buildConfig(config, scenario.defaultValue);
           const overrides = scenario.buildOverrides(scenario.defaultValue);
           const result = runSimulationEngine(
@@ -367,8 +357,50 @@ export const WhatIfSimulator: React.FC<WhatIfSimulatorProps> = ({
     }
   };
 
+  // Renders the icon for any scenario iconType.
+  const renderScenarioIcon = (iconType: string, className: string) => {
+    switch (iconType) {
+      case 'clock': return <Clock className={className} />;
+      case 'box': return <Box className={className} />;
+      case 'calendar': return <Calendar className={className} />;
+      case 'zap': return <Zap className={className} />;
+      case 'trending': return <TrendingUp className={className} />;
+      case 'users': return <Users className={className} />;
+      case 'flame': return <Flame className={className} />;
+      case 'truck': return <Truck className={className} />;
+      case 'coin': return <Coins className={className} />;
+      default: return <Zap className={className} />;
+    }
+  };
+
   return (
     <div className="space-y-6 font-sans max-w-[1400px] mx-auto">
+      {/* ── SAFE-TO-COMMIT (FLAGSHIP DECISION FEATURE) ─────────────────── */}
+      <SafeToCommitPanel
+        config={config}
+        transactions={transactions}
+        payables={payables}
+        expenses={expenses}
+        industryProfile={industryProfile}
+        onApprove={(result, amount) => {
+          // Record the decision in the audit log (industry, amount, engine results)
+          fetch('/api/decisions/approve', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              decisionType: industryProfile.safeToCommit.entityLabel,
+              amount,
+              verdict: result.verdict,
+              expectedMinCash: result.expectedMinCash,
+              cashImpact: result.cashImpact,
+              liquidityRisk: result.liquidityRisk,
+              breachDate: result.breachDate,
+              recommendedAction: result.alternatives[0]?.title,
+            }),
+          }).catch((e) => console.error('Failed to record decision:', e));
+        }}
+      />
+
       {/* ── HEADER ──────────────────────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -424,7 +456,7 @@ export const WhatIfSimulator: React.FC<WhatIfSimulatorProps> = ({
           </h2>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {SCENARIOS.map((scenario) => {
+          {scenarios.map((scenario) => {
             const isSelected = selectedScenarioId === scenario.id;
             const currentValueRaw =
               typeof scenario.currentValue === 'function'
@@ -448,10 +480,7 @@ export const WhatIfSimulator: React.FC<WhatIfSimulatorProps> = ({
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <div className={`w-9 h-9 rounded-xl ${tc.iconBg} border ${tc.iconBorder} flex items-center justify-center`}>
-                      {scenario.iconType === 'clock' && <Clock className={`w-4 h-4 ${tc.icon}`} />}
-                      {scenario.iconType === 'box' && <Box className={`w-4 h-4 ${tc.icon}`} />}
-                      {scenario.iconType === 'calendar' && <Calendar className={`w-4 h-4 ${tc.icon}`} />}
-                      {scenario.iconType === 'zap' && <Zap className={`w-4 h-4 ${tc.icon}`} />}
+                      {renderScenarioIcon(scenario.iconType, `w-4 h-4 ${tc.icon}`)}
                     </div>
                     {isSelected && (
                       <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${tc.badgeBg} ${tc.badgeText}`}>
@@ -863,10 +892,7 @@ export const WhatIfSimulator: React.FC<WhatIfSimulatorProps> = ({
                       >
                         <td className="py-3 px-3">
                           <div className="flex items-center gap-2">
-                            {scenario.iconType === 'clock' && <Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
-                            {scenario.iconType === 'box' && <Box className="w-3.5 h-3.5 text-rose-500 shrink-0" />}
-                            {scenario.iconType === 'calendar' && <Calendar className="w-3.5 h-3.5 text-blue-500 shrink-0" />}
-                            {scenario.iconType === 'zap' && <Zap className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
+                            {renderScenarioIcon(scenario.iconType, 'w-3.5 h-3.5 text-indigo-500 shrink-0')}
                             <span className={`font-bold ${textPrimary}`}>{scenario.title}</span>
                             {isBest && (
                               <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full border border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
@@ -923,7 +949,7 @@ export const WhatIfSimulator: React.FC<WhatIfSimulatorProps> = ({
                     Best Available Scenario: {best.scenario.title}
                   </div>
                   <div className={`text-xs mt-1 font-medium ${textSecondary}`}>
-                    {best.scenario.icon} {best.scenario.title} at {best.value}{best.scenario.paramUnit} —
+                    {best.scenario.title} at {best.value}{best.scenario.paramUnit} —
                     Min Cash: <strong className={best.result.hasBreach ? 'text-red-600' : 'text-emerald-600'}>{formatINR(best.result.minProjectedCash)}</strong>,
                     Breach Risk: <strong className={best.result.breachProbability > 0.5 ? 'text-red-600' : 'text-emerald-600'}>{(best.result.breachProbability * 100).toFixed(0)}%</strong>,
                     Status: <strong>{bestStatus.label}</strong>

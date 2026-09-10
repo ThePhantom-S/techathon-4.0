@@ -3,8 +3,27 @@ import { PGlite } from '@electric-sql/pglite';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
-import { Transaction, Payable, Expense, Config } from '../types';
+import { BusinessProfile, IndustryId, Transaction, Payable, Expense, Config } from '../types';
+import { isValidIndustryId } from '../config/industries';
 import { DEFAULT_CONFIG, INITIAL_TRANSACTIONS, INITIAL_PAYABLES, INITIAL_EXPENSES } from '../engine/sampleData';
+import { IndustryDemoProfile, getIndustryDemoProfile } from '../engine/demoProfiles';
+
+dotenv.config();
+
+// ── Business Profile JSON mirror (used when SQL persistence is unavailable) ──
+const BUSINESS_PROFILE_FILE = path.join(process.cwd(), 'flowshield_business_profile.json');
+
+const DEFAULT_BUSINESS_PROFILE: BusinessProfile = {
+  id: 'shakti-config',
+  businessName: 'Shakti Electronics',
+  industryId: 'manufacturing',
+  currency: 'INR',
+  country: 'India',
+  cashFloor: 500000,
+  isDemo: true,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
 
 dotenv.config();
 
@@ -31,7 +50,7 @@ async function getOrCreatePGlite(): Promise<PGlite> {
   return pgliteInstance;
 }
 
-async function dbQuery(sql: string, params: any[] = []): Promise<{ rows: any[] }> {
+export async function dbQuery(sql: string, params: any[] = []): Promise<{ rows: any[] }> {
   try {
     if (activeEngine === 'container') {
       return await pool.query(sql, params);
@@ -62,6 +81,175 @@ function parseArray(val: any): number[] {
     return cleaned.split(',').map(v => parseFloat(v.trim()));
   }
   return [0.5, 0.3, 0.2];
+}
+
+// ── Business Profile Helpers ─────────────────────────────────────────────
+
+function readProfileFromJson(): BusinessProfile | null {
+  try {
+    if (!fs.existsSync(BUSINESS_PROFILE_FILE)) return null;
+    const raw = fs.readFileSync(BUSINESS_PROFILE_FILE, 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (parsed && isValidIndustryId(parsed.industryId)) return parsed as BusinessProfile;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function writeProfileToJson(profile: BusinessProfile) {
+  try {
+    fs.writeFileSync(BUSINESS_PROFILE_FILE, JSON.stringify(profile, null, 2), 'utf-8');
+  } catch (e) {
+    console.warn('Failed to mirror business profile to JSON:', (e as any)?.message || e);
+  }
+}
+
+/** Normalizes any date-ish value to a Postgres/ISO-compatible timestamp string. */
+function toSqlTimestamp(val: any): string {
+  if (!val) return new Date().toISOString();
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+}
+
+function mapProfileRow(row: any): BusinessProfile {
+  const industryId: IndustryId = isValidIndustryId(row.industry_id) ? row.industry_id : 'manufacturing';
+  return {
+    id: row.id || 'shakti-config',
+    businessName: row.business_name || 'Shakti Electronics',
+    industryId,
+    currency: row.currency || 'INR',
+    country: row.country || 'India',
+    cashFloor: parseFloat(row.cash_floor ?? 500000),
+    isDemo: row.is_demo === true || row.is_demo === 't' || row.is_demo === 'true' || row.is_demo === 1,
+    createdAt: toSqlTimestamp(row.created_at),
+    updatedAt: toSqlTimestamp(row.updated_at),
+  };
+}
+
+export async function getBusinessProfile(): Promise<BusinessProfile> {
+  try {
+    const res = await dbQuery(`SELECT * FROM business_profile WHERE id = 'shakti-config'`);
+    if (res?.rows?.[0]) {
+      const profile = mapProfileRow(res.rows[0]);
+      return profile;
+    }
+  } catch (err) {
+    console.warn('getBusinessProfile SQL read failed (using JSON mirror):', (err as any)?.message || err);
+  }
+
+  const jsonProfile = readProfileFromJson();
+  return jsonProfile || { ...DEFAULT_BUSINESS_PROFILE };
+}
+
+export async function saveBusinessProfile(input: {
+  businessName?: string;
+  industryId?: IndustryId;
+  currency?: string;
+  country?: string;
+  cashFloor?: number;
+  isDemo?: boolean;
+}): Promise<BusinessProfile> {
+  const current = await getBusinessProfile();
+  const next: BusinessProfile = {
+    ...current,
+    businessName: input.businessName !== undefined ? input.businessName : current.businessName,
+    industryId: input.industryId !== undefined ? input.industryId : current.industryId,
+    currency: input.currency !== undefined ? input.currency : current.currency,
+    country: input.country !== undefined ? input.country : current.country,
+    cashFloor: input.cashFloor !== undefined ? input.cashFloor : current.cashFloor,
+    isDemo: input.isDemo !== undefined ? input.isDemo : current.isDemo,
+    updatedAt: new Date().toISOString(),
+  };
+
+  // Mirror to JSON always (works in every engine mode)
+  writeProfileToJson(next);
+
+  try {
+    const sqlCreatedAt = toSqlTimestamp(next.createdAt);
+    const sqlUpdatedAt = toSqlTimestamp(next.updatedAt);
+    await dbQuery(`
+      INSERT INTO business_profile (id, business_name, industry_id, currency, country, cash_floor, is_demo, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      ON CONFLICT (id) DO UPDATE SET
+        business_name = EXCLUDED.business_name,
+        industry_id = EXCLUDED.industry_id,
+        currency = EXCLUDED.currency,
+        country = EXCLUDED.country,
+        cash_floor = EXCLUDED.cash_floor,
+        is_demo = EXCLUDED.is_demo,
+        updated_at = EXCLUDED.updated_at
+    `, [
+      next.id, next.businessName, next.industryId, next.currency, next.country,
+      next.cashFloor, next.isDemo, sqlCreatedAt, sqlUpdatedAt,
+    ]);
+
+    await dbQuery(`
+      INSERT INTO audit_logs (action, details)
+      VALUES ('BUSINESS_PROFILE', 'Industry: ' || $1 || ', Business: ' || $2)
+    `, [next.industryId, next.businessName]);
+  } catch (err) {
+    console.warn('saveBusinessProfile SQL write failed (JSON mirror kept):', (err as any)?.message || err);
+  }
+
+  return next;
+}
+
+export async function setBusinessIndustry(industryId: IndustryId): Promise<BusinessProfile> {
+  return saveBusinessProfile({ industryId });
+}
+
+/**
+ * Switches the demo business to an industry: loads that industry's synthetic
+ * dataset into the ledger AND updates the business profile. Financial records
+ * are replaced only as part of an explicit demo-switch action.
+ */
+export async function switchDemoBusiness(industryId: string): Promise<{ profile: BusinessProfile; demo: IndustryDemoProfile } | null> {
+  const demo = getIndustryDemoProfile(industryId);
+  if (!demo) return null;
+
+  await dbQuery(`DELETE FROM transactions`);
+  await dbQuery(`DELETE FROM payables`);
+  await dbQuery(`DELETE FROM expenses`);
+
+  for (const tx of demo.transactions) {
+    await dbQuery(`
+      INSERT INTO transactions (id, date, customer, invoice_amount, expected_payment_date, collection_probability, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [tx.id, tx.date, tx.customer, tx.invoice_amount, tx.expected_payment_date, tx.collection_probability, tx.status]);
+  }
+  for (const pay of demo.payables) {
+    await dbQuery(`
+      INSERT INTO payables (id, supplier, amount, due_date, category, status)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [pay.id, pay.supplier, pay.amount, pay.due_date, pay.category, pay.status]);
+  }
+  for (const exp of demo.expenses) {
+    await dbQuery(`
+      INSERT INTO expenses (id, date, category, amount)
+      VALUES ($1, $2, $3, $4)
+    `, [exp.id, exp.date, exp.category, exp.amount]);
+  }
+
+  await dbQuery(`
+    UPDATE configuration
+    SET current_cash = $1, cash_floor = $2, supplier_delay_days = $3
+    WHERE id = 'shakti-config'
+  `, [demo.config.current_cash, demo.config.cash_floor, demo.config.supplier_delay_days]);
+
+  const profile = await saveBusinessProfile({
+    businessName: demo.businessName,
+    industryId: demo.industryId as IndustryId,
+    cashFloor: demo.config.cash_floor,
+    isDemo: true,
+  });
+
+  await dbQuery(`
+    INSERT INTO audit_logs (action, details)
+    VALUES ('SWITCH_DEMO', 'Industry: ' || $1 || ', Business: ' || $2)
+  `, [demo.industryId, demo.businessName]);
+
+  return { profile, demo };
 }
 
 // ── Database Initialization ──────────────────────────────────────────────
@@ -153,6 +341,21 @@ export async function initDb() {
     );
   `);
 
+  // Business profile table (industry-aware configuration — no sensitive data)
+  await dbQuery(`
+    CREATE TABLE IF NOT EXISTS business_profile (
+      id VARCHAR(50) PRIMARY KEY,
+      business_name VARCHAR(200) NOT NULL,
+      industry_id VARCHAR(50) NOT NULL DEFAULT 'manufacturing',
+      currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+      country VARCHAR(100) NOT NULL DEFAULT 'India',
+      cash_floor NUMERIC(15, 2) NOT NULL DEFAULT 500000,
+      is_demo BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+  `);
+
   // 2. Check if configuration is empty; if so, seed default dataset (Shakti Electronics)
   const configCheck = await dbQuery(`SELECT COUNT(*) as count FROM configuration`);
   const count = parseInt(configCheck.rows[0].count);
@@ -210,6 +413,17 @@ export async function initDb() {
       VALUES ('SEED', 'Default Shakti Electronics database seed complete')
     `);
     console.log('Postgres seeding finished.');
+  }
+
+  // 3. Seed the default business profile (Shakti Electronics → Manufacturing) if empty
+  const profileCheck = await dbQuery(`SELECT COUNT(*) as count FROM business_profile`);
+  const profileCount = parseInt(profileCheck.rows[0].count);
+  if (profileCount === 0) {
+    await dbQuery(`
+      INSERT INTO business_profile (id, business_name, industry_id, currency, country, cash_floor, is_demo, created_at, updated_at)
+      VALUES ('shakti-config', 'Shakti Electronics', 'manufacturing', 'INR', 'India', 500000.00, TRUE, NOW(), NOW())
+      ON CONFLICT (id) DO NOTHING
+    `);
   }
 }
 
