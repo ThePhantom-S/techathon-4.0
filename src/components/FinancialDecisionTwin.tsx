@@ -242,7 +242,17 @@ export const FinancialDecisionTwin: React.FC<FinancialDecisionTwinProps> = ({
                           ? `+${supplierDelayDays} DAYS`
                           : isLast
                             ? hasBreach ? breachDays : formatINR(minCash)
-                            : '•'}
+                            : (() => {
+                                switch (box.kind) {
+                                  case 'inventory': return 'Stock Depletion';
+                                  case 'operations': return 'Idle Capacity';
+                                  case 'service': return 'SLA Risk';
+                                  case 'recurring': return 'Churn Risk';
+                                  case 'customer': return 'Fulfillment Risk';
+                                  case 'expense': return 'Fixed Cost Burn';
+                                  default: return 'Impacted';
+                                }
+                              })()}
                       </div>
                     </div>
                   );
