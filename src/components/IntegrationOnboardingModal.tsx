@@ -19,6 +19,8 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { parseCSV, generateCashShockTemplate } from '../engine/csvParser';
 import { INDUSTRY_OPTIONS } from '../config/industries';
+import { CustomDropdown, DropdownOption } from './CustomDropdown';
+import { IndustryIcon } from './IndustryIcon';
 
 interface IntegrationOnboardingModalProps {
   isOpen: boolean;
@@ -189,6 +191,20 @@ export const IntegrationOnboardingModal: React.FC<IntegrationOnboardingModalProp
 
   if (!isOpen) return null;
 
+  const industryDropdownOptions: DropdownOption[] = INDUSTRY_OPTIONS.map((ind) => ({
+    value: ind.id,
+    label: ind.name,
+    sublabel: ind.category,
+    icon: <IndustryIcon icon={ind.icon} className="w-4 h-4" />,
+  }));
+
+  const currencyDropdownOptions: DropdownOption[] = [
+    { value: 'INR', label: 'INR (₹) - Indian Rupee', icon: <span className="font-semibold text-xs">₹</span> },
+    { value: 'USD', label: 'USD ($) - US Dollar', icon: <span className="font-semibold text-xs">$</span> },
+    { value: 'EUR', label: 'EUR (€) - Euro', icon: <span className="font-semibold text-xs">€</span> },
+    { value: 'GBP', label: 'GBP (£) - British Pound', icon: <span className="font-semibold text-xs">£</span> },
+  ];
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
       <div
@@ -276,47 +292,24 @@ export const IntegrationOnboardingModal: React.FC<IntegrationOnboardingModalProp
                   <label className={`block text-xs font-semibold mb-1.5 ${isLight ? 'text-slate-700' : 'text-zinc-300'}`}>
                     Industry Sector
                   </label>
-                  <div className="relative">
-                    <Briefcase className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <select
-                      value={selectedIndustry}
-                      onChange={(e) => setSelectedIndustry(e.target.value)}
-                      className={`w-full pl-9 pr-3 py-2.5 rounded-xl border text-xs outline-none transition-all cursor-pointer ${
-                        isLight
-                          ? 'bg-white border-slate-300 text-slate-900 focus:border-indigo-600'
-                          : 'bg-zinc-900 border-zinc-800 text-white focus:border-indigo-500'
-                      }`}
-                    >
-                      {INDUSTRY_OPTIONS.map((ind) => (
-                        <option key={ind.id} value={ind.id} className="bg-zinc-900 text-white">
-                          {ind.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <CustomDropdown
+                    value={selectedIndustry}
+                    options={industryDropdownOptions}
+                    onChange={(val) => setSelectedIndustry(val)}
+                    placeholder="Select Industry Sector"
+                  />
                 </div>
 
                 <div>
                   <label className={`block text-xs font-semibold mb-1.5 ${isLight ? 'text-slate-700' : 'text-zinc-300'}`}>
                     Operating Currency
                   </label>
-                  <div className="relative">
-                    <Coins className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <select
-                      value={currency}
-                      onChange={(e) => setCurrency(e.target.value)}
-                      className={`w-full pl-9 pr-3 py-2.5 rounded-xl border text-xs outline-none transition-all cursor-pointer ${
-                        isLight
-                          ? 'bg-white border-slate-300 text-slate-900 focus:border-indigo-600'
-                          : 'bg-zinc-900 border-zinc-800 text-white focus:border-indigo-500'
-                      }`}
-                    >
-                      <option value="INR" className="bg-zinc-900 text-white">INR (₹) - Indian Rupee</option>
-                      <option value="USD" className="bg-zinc-900 text-white">USD ($) - US Dollar</option>
-                      <option value="EUR" className="bg-zinc-900 text-white">EUR (€) - Euro</option>
-                      <option value="GBP" className="bg-zinc-900 text-white">GBP (£) - British Pound</option>
-                    </select>
-                  </div>
+                  <CustomDropdown
+                    value={currency}
+                    options={currencyDropdownOptions}
+                    onChange={(val) => setCurrency(val)}
+                    placeholder="Select Currency"
+                  />
                 </div>
               </div>
 

@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Building2, Check, ShieldCheck, Save, Globe, Coins, FileText, Briefcase } from 'lucide-react';
 import { INDUSTRY_OPTIONS } from '../config/industries';
 import { IndustryId } from '../types';
 import { useBusinessProfile } from '../context/BusinessProfileContext';
 import { useTheme } from '../context/ThemeContext';
 import { IndustryIcon } from './IndustryIcon';
+import { CustomDropdown, DropdownOption } from './CustomDropdown';
 
 interface IndustrySelectorProps {
   mode?: 'onboarding' | 'inline';
@@ -26,6 +27,13 @@ export const IndustrySelector: React.FC<IndustrySelectorProps> = ({ mode = 'inli
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  useEffect(() => {
+    setBusinessName(businessProfile.businessName);
+    setSelectedIndustry(businessProfile.industryId);
+    setCurrency(businessProfile.currency || 'INR');
+    setCountry(businessProfile.country || 'India');
+  }, [businessProfile]);
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!businessName.trim()) {
@@ -40,6 +48,8 @@ export const IndustrySelector: React.FC<IndustrySelectorProps> = ({ mode = 'inli
       await saveProfile({
         businessName: businessName.trim(),
         industryId: selectedIndustry,
+        currency,
+        country,
       });
       setSuccess('Business profile and industry model updated successfully.');
       setTimeout(() => setSuccess(null), 4000);
@@ -112,24 +122,17 @@ export const IndustrySelector: React.FC<IndustrySelectorProps> = ({ mode = 'inli
           <label className={`text-xs font-semibold block ${isLight ? 'text-slate-700' : 'text-zinc-300'}`}>
             Industry Operating Model
           </label>
-          <div className="relative">
-            <Briefcase className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <select
-              value={selectedIndustry}
-              onChange={(e) => setSelectedIndustry(e.target.value as IndustryId)}
-              className={`w-full pl-9 pr-3 py-2 rounded-xl border text-xs font-sans outline-none transition-colors cursor-pointer ${
-                isLight
-                  ? 'bg-white border-slate-200 focus:border-indigo-600 text-slate-900'
-                  : 'bg-zinc-900 border-zinc-800 focus:border-indigo-500 text-zinc-100'
-              }`}
-            >
-              {INDUSTRY_OPTIONS.map((opt) => (
-                <option key={opt.id} value={opt.id} className="bg-zinc-900 text-white">
-                  {opt.name} ({opt.category})
-                </option>
-              ))}
-            </select>
-          </div>
+          <CustomDropdown
+            value={selectedIndustry}
+            options={INDUSTRY_OPTIONS.map((opt) => ({
+              value: opt.id,
+              label: opt.name,
+              sublabel: opt.category,
+              icon: <IndustryIcon icon={opt.icon} className="w-4 h-4" />,
+            }))}
+            onChange={(val) => setSelectedIndustry(val as IndustryId)}
+            placeholder="Select Industry Model"
+          />
           <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
             Calibrates working capital benchmarks (DSO, DPO, inventory turns).
           </p>
@@ -140,23 +143,17 @@ export const IndustrySelector: React.FC<IndustrySelectorProps> = ({ mode = 'inli
           <label className={`text-xs font-semibold block ${isLight ? 'text-slate-700' : 'text-zinc-300'}`}>
             Reporting Currency
           </label>
-          <div className="relative">
-            <Coins className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <select
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
-              className={`w-full pl-9 pr-3 py-2 rounded-xl border text-xs font-sans outline-none transition-colors cursor-pointer ${
-                isLight
-                  ? 'bg-white border-slate-200 focus:border-indigo-600 text-slate-900'
-                  : 'bg-zinc-900 border-zinc-800 focus:border-indigo-500 text-zinc-100'
-              }`}
-            >
-              <option value="INR" className="bg-zinc-900 text-white">INR (₹) - Indian Rupee</option>
-              <option value="USD" className="bg-zinc-900 text-white">USD ($) - US Dollar</option>
-              <option value="EUR" className="bg-zinc-900 text-white">EUR (€) - Euro</option>
-              <option value="GBP" className="bg-zinc-900 text-white">GBP (£) - British Pound</option>
-            </select>
-          </div>
+          <CustomDropdown
+            value={currency}
+            options={[
+              { value: 'INR', label: 'INR (₹) - Indian Rupee', icon: <span className="font-semibold text-xs">₹</span> },
+              { value: 'USD', label: 'USD ($) - US Dollar', icon: <span className="font-semibold text-xs">$</span> },
+              { value: 'EUR', label: 'EUR (€) - Euro', icon: <span className="font-semibold text-xs">€</span> },
+              { value: 'GBP', label: 'GBP (£) - British Pound', icon: <span className="font-semibold text-xs">£</span> },
+            ]}
+            onChange={(val) => setCurrency(val)}
+            placeholder="Select Currency"
+          />
           <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
             Financial figures and simulation outputs will render in this currency.
           </p>

@@ -10,8 +10,8 @@ import {
   updateConfiguration,
   saveConnectedPlatformData,
   resetToBaseline,
-  logWhatsAppNotification,
-  getRecentWhatsAppNotifications,
+  logTelegramNotification,
+  getRecentTelegramNotifications,
   getBusinessProfile,
   saveBusinessProfile,
   setBusinessIndustry,
@@ -23,10 +23,10 @@ import {
   sendTestMessage,
   sendWeeklyBriefing,
   sendRiskEscalation,
-  getWhatsAppStatus,
-  WhatsAppError,
-} from './src/services/whatsapp';
-import { getWhatsAppAlertSettings, saveWhatsAppAlertSettings } from './src/db/whatsappSettings';
+  getWhatsAppStatus as getTelegramStatus,
+  WhatsAppError as TelegramError,
+} from './src/services/telegram';
+import { getTelegramAlertSettings, saveTelegramAlertSettings } from './src/db/telegramSettings';
 import {
   getZohoState, saveZohoCredentials, saveZohoTokens, updateZohoSyncResult, disconnectZoho,
   getQuickBooksState, saveQuickBooksCredentials, saveQuickBooksTokens, updateQuickBooksSyncResult, disconnectQuickBooks,
@@ -76,8 +76,16 @@ async function startServer() {
     return typeof k === 'string' && k.trim().length > 0 && !k.trim().startsWith('your_');
   };
 
-  const stripEmojis = (str: string): string => {
-    return str.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E6}-\u{1F1FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}]/gu, '').trim();
+  const cleanAiResponse = (str: string): string => {
+    if (!str || typeof str !== 'string') return '';
+    // Strip out thinking/reasoning tags from DeepSeek/Gemini/Groq models
+    let cleaned = str.replace(/<think>[\s\S]*?<\/think>/gi, '');
+    cleaned = cleaned.replace(/<think>[\s\S]*$/gi, '');
+    cleaned = cleaned.replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '');
+    cleaned = cleaned.replace(/<reasoning>[\s\S]*$/gi, '');
+    // Strip emojis
+    cleaned = cleaned.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E6}-\u{1F1FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}]/gu, '');
+    return cleaned.trim();
   };
 
   interface AiExecutionParams {
@@ -173,7 +181,7 @@ async function startServer() {
           });
           const groqData: any = await groqRes.json();
           if (groqData.choices?.[0]?.message?.content) {
-            return { text: stripEmojis(groqData.choices[0].message.content), noApiKey: false };
+            return { text: cleanAiResponse(groqData.choices[0].message.content), noApiKey: false };
           }
 
           if (groqData.error?.code === 'invalid_api_key' || groqData.error?.message?.toLowerCase().includes('invalid api key')) {
@@ -220,7 +228,7 @@ async function startServer() {
           const geminiData: any = await geminiRes.json();
           const candText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
           if (candText) {
-            return { text: stripEmojis(candText), noApiKey: false };
+            return { text: cleanAiResponse(candText), noApiKey: false };
           }
 
           if (geminiData.error?.status === 'INVALID_ARGUMENT' && geminiData.error?.message?.includes('API key not valid')) {
@@ -265,7 +273,7 @@ async function startServer() {
           });
           const orData: any = await orRes.json();
           if (orData.choices?.[0]?.message?.content) {
-            return { text: stripEmojis(orData.choices[0].message.content), noApiKey: false };
+            return { text: cleanAiResponse(orData.choices[0].message.content), noApiKey: false };
           }
 
           if (orData.error?.code === 401 || orData.error?.message?.toLowerCase().includes('user key')) {
@@ -1900,10 +1908,10 @@ Find 3-5 real anomalies. Focus on: overdue invoices, concentration risk (single 
   // Builds a verified brief payload from the deterministic financial engine.
   // No financial number is invented here — everything comes from
   // getFinancials() + runSimulationEngine().
-  const computeWhatsAppBriefPayload = async () => {
+  const computeTelegramBriefPayload = async () => {
     const financials = await getFinancials();
     if (!financials?.config) {
-      throw new WhatsAppError('Financial data unavailable.', 503);
+      throw new TelegramError('Financial data unavailable.', 503);
     }
     const config = financials.config;
     const result = runSimulationEngine(
@@ -1973,10 +1981,10 @@ Find 3-5 real anomalies. Focus on: overdue invoices, concentration risk (single 
   };
 
   // Safe status + user notification preferences (never returns secrets)
-  app.get('/api/notifications/whatsapp/status', async (req, res) => {
+  app.get('/api/notifications/telegram/status', async (req, res) => {
     try {
-      const status = getWhatsAppStatus();
-      const settings = getWhatsAppAlertSettings();
+      const status = getTelegramStatus();
+      const settings = getTelegramAlertSettings();
       res.json({
         enabled: status.enabled,
         configured: status.configured,
@@ -1984,27 +1992,27 @@ Find 3-5 real anomalies. Focus on: overdue invoices, concentration risk (single 
         settings,
       });
     } catch (e: any) {
-      console.error('WhatsApp status error:', e.message);
-      res.status(500).json({ error: 'Failed to read WhatsApp integration status.' });
+      console.error('Telegram status error:', e.message);
+      res.status(500).json({ error: 'Failed to read Telegram integration status.' });
     }
   });
 
   // Connectivity test — simple message only
-  app.post('/api/notifications/whatsapp/test', async (req, res) => {
+  app.post('/api/notifications/telegram/test', async (req, res) => {
     try {
       const result = await sendTestMessage();
-      await logWhatsAppNotification({
+      await logTelegramNotification({
         alertType: 'TEST',
-        phoneNumber: process.env.WHATSAPP_RECIPIENT_PHONE || undefined,
+        phoneNumber: process.env.TELEGRAM_CHAT_ID || undefined,
         status: 'SENT',
         messageId: result.messageId || undefined,
       });
-      res.json({ success: true, message: 'Test message sent to WhatsApp.', messageId: result.messageId });
+      res.json({ success: true, message: 'Test message sent to Telegram.', messageId: result.messageId });
     } catch (err: any) {
-      const msg = err instanceof WhatsAppError ? err.message : 'Unable to send the WhatsApp test message. Check integration settings.';
-      const code = err instanceof WhatsAppError ? err.statusCode : 502;
-      if (err instanceof WhatsAppError && err.statusCode !== 503) {
-        await logWhatsAppNotification({
+      const msg = err instanceof TelegramError ? err.message : 'Unable to send the Telegram test message. Check integration settings.';
+      const code = err instanceof TelegramError ? err.statusCode : 502;
+      if (err instanceof TelegramError && err.statusCode !== 503) {
+        await logTelegramNotification({
           alertType: 'TEST',
           status: 'FAILED',
           errorMessage: msg,
@@ -2015,13 +2023,13 @@ Find 3-5 real anomalies. Focus on: overdue invoices, concentration risk (single 
   });
 
   // Send the latest verified liquidity brief
-  app.post('/api/notifications/whatsapp/send', async (req, res) => {
+  app.post('/api/notifications/telegram/send', async (req, res) => {
     try {
-      const { payload, result, financials } = await computeWhatsAppBriefPayload();
+      const { payload, result, financials } = await computeTelegramBriefPayload();
       const sent = await sendLiquidityAlert(payload);
-      await logWhatsAppNotification({
+      await logTelegramNotification({
         alertType: 'LIQUIDITY_BRIEF',
-        phoneNumber: process.env.WHATSAPP_RECIPIENT_PHONE || undefined,
+        phoneNumber: process.env.TELEGRAM_CHAT_ID || undefined,
         riskLevel: result.hasBreach ? 'CRITICAL' : result.breachProbability > 0.6 ? 'HIGH' : result.breachProbability > 0.25 ? 'MEDIUM' : 'LOW',
         breachProbability: result.breachProbability,
         status: 'SENT',
@@ -2029,7 +2037,7 @@ Find 3-5 real anomalies. Focus on: overdue invoices, concentration risk (single 
       });
       res.json({
         success: true,
-        message: 'Liquidity brief sent to WhatsApp.',
+        message: 'Liquidity brief sent to Telegram.',
         messageId: sent.messageId,
         summary: {
           currentCash: financials.config.current_cash,
@@ -2039,10 +2047,10 @@ Find 3-5 real anomalies. Focus on: overdue invoices, concentration risk (single 
         },
       });
     } catch (err: any) {
-      const msg = err instanceof WhatsAppError ? err.message : 'Unable to send the WhatsApp liquidity brief.';
-      const code = err instanceof WhatsAppError ? err.statusCode : 502;
-      if (err instanceof WhatsAppError) {
-        await logWhatsAppNotification({
+      const msg = err instanceof TelegramError ? err.message : 'Unable to send the Telegram liquidity brief.';
+      const code = err instanceof TelegramError ? err.statusCode : 502;
+      if (err instanceof TelegramError) {
+        await logTelegramNotification({
           alertType: 'LIQUIDITY_BRIEF',
           status: 'FAILED',
           errorMessage: msg,
@@ -2054,19 +2062,19 @@ Find 3-5 real anomalies. Focus on: overdue invoices, concentration risk (single 
 
   // Evaluate automatic alert rules against current verified risk and fire due alerts.
   // Deduplicated: an alert type is only re-sent after its cooldown window passes.
-  app.post('/api/notifications/whatsapp/evaluate', async (req, res) => {
+  app.post('/api/notifications/telegram/evaluate', async (req, res) => {
     try {
-      const settings = getWhatsAppAlertSettings();
-      const status = getWhatsAppStatus();
+      const settings = getTelegramAlertSettings();
+      const status = getTelegramStatus();
       if (!status.configured) {
-        return res.status(503).json({ success: false, error: 'WhatsApp integration is not configured.' });
+        return res.status(503).json({ success: false, error: 'Telegram integration is not configured.' });
       }
       if (!status.recipientConfigured) {
-        return res.status(400).json({ success: false, error: 'WhatsApp recipient is not configured.' });
+        return res.status(400).json({ success: false, error: 'Telegram recipient is not configured.' });
       }
 
-      const { payload, result, financials } = await computeWhatsAppBriefPayload();
-      const recent = await getRecentWhatsAppNotifications(40);
+      const { payload, result, financials } = await computeTelegramBriefPayload();
+      const recent = await getRecentTelegramNotifications(40);
       const alreadySent = (alertType: string, cooldownHours: number): boolean => {
         const hit = recent.find((r: any) => r.alertType === alertType && r.status === 'SENT');
         if (!hit || !hit.sentAt) return false;
@@ -2079,9 +2087,9 @@ Find 3-5 real anomalies. Focus on: overdue invoices, concentration risk (single 
       const errors: string[] = [];
 
       const recordOutcome = async (alertType: string, ok: boolean, msg?: string) => {
-        await logWhatsAppNotification({
+        await logTelegramNotification({
           alertType,
-          phoneNumber: process.env.WHATSAPP_RECIPIENT_PHONE || undefined,
+          phoneNumber: process.env.TELEGRAM_CHAT_ID || undefined,
           riskLevel,
           breachProbability: result.breachProbability,
           status: ok ? 'SENT' : 'FAILED',
@@ -2094,9 +2102,9 @@ Find 3-5 real anomalies. Focus on: overdue invoices, concentration risk (single 
       if (settings.floorBreachEnabled && result.hasBreach && !alreadySent('CRITICAL_BREACH', 24)) {
         try {
           const sent = await sendLiquidityAlert(payload);
-          await logWhatsAppNotification({
+          await logTelegramNotification({
             alertType: 'CRITICAL_BREACH',
-            phoneNumber: process.env.WHATSAPP_RECIPIENT_PHONE || undefined,
+            phoneNumber: process.env.TELEGRAM_CHAT_ID || undefined,
             riskLevel: 'CRITICAL',
             breachProbability: result.breachProbability,
             status: 'SENT',
@@ -2114,9 +2122,9 @@ Find 3-5 real anomalies. Focus on: overdue invoices, concentration risk (single 
       if (!fired.includes('Cash-floor breach') && settings.highRiskEnabled && highRiskTriggered && !alreadySent('HIGH_RISK', 24)) {
         try {
           const sent = await sendRiskEscalation(payload);
-          await logWhatsAppNotification({
+          await logTelegramNotification({
             alertType: 'HIGH_RISK',
-            phoneNumber: process.env.WHATSAPP_RECIPIENT_PHONE || undefined,
+            phoneNumber: process.env.TELEGRAM_CHAT_ID || undefined,
             riskLevel: 'HIGH',
             breachProbability: result.breachProbability,
             status: 'SENT',
@@ -2142,9 +2150,9 @@ Find 3-5 real anomalies. Focus on: overdue invoices, concentration risk (single 
               ...payload,
               recommendation: `Negotiate the ${criticalPayment.supplier} payment (${formatINR(criticalPayment.amount)}) terms before it is due.`,
             });
-            await logWhatsAppNotification({
+            await logTelegramNotification({
               alertType: 'PAYMENT_RISK',
-              phoneNumber: process.env.WHATSAPP_RECIPIENT_PHONE || undefined,
+              phoneNumber: process.env.TELEGRAM_CHAT_ID || undefined,
               riskLevel: 'HIGH',
               breachProbability: result.breachProbability,
               status: 'SENT',
@@ -2162,9 +2170,9 @@ Find 3-5 real anomalies. Focus on: overdue invoices, concentration risk (single 
       if (settings.weeklyBriefingEnabled && !alreadySent('WEEKLY_BRIEFING', 24 * 7)) {
         try {
           const sent = await sendWeeklyBriefing(payload);
-          await logWhatsAppNotification({
+          await logTelegramNotification({
             alertType: 'WEEKLY_BRIEFING',
-            phoneNumber: process.env.WHATSAPP_RECIPIENT_PHONE || undefined,
+            phoneNumber: process.env.TELEGRAM_CHAT_ID || undefined,
             riskLevel,
             breachProbability: result.breachProbability,
             status: 'SENT',
@@ -2185,16 +2193,53 @@ Find 3-5 real anomalies. Focus on: overdue invoices, concentration risk (single 
         currentRisk: { riskLevel, breachProbability: Math.round(result.breachProbability * 100) },
       });
     } catch (e: any) {
-      console.error('WhatsApp evaluate error:', e.message);
-      res.status(500).json({ success: false, error: 'Failed to evaluate WhatsApp alert conditions.' });
+      console.error('Telegram evaluate error:', e.message);
+      res.status(500).json({ success: false, error: 'Failed to evaluate Telegram alert conditions.' });
     }
   });
 
   // Update safe notification preferences (no secrets accepted or stored)
-  app.post('/api/notifications/whatsapp/settings', async (req, res) => {
+  app.post('/api/notifications/telegram/credentials', async (req, res) => {
+    try {
+      const { token, phoneId, recipientPhone } = req.body;
+      
+      // Update process.env for immediate effect
+      if (token !== undefined) process.env.TELEGRAM_BOT_TOKEN = token;
+      if (phoneId !== undefined) process.env.TELEGRAM_CHAT_ID = phoneId;
+      if (recipientPhone !== undefined) process.env.TELEGRAM_CHAT_ID = recipientPhone;
+
+      // Update .env file for persistence
+      const fs = require('fs');
+      const path = require('path');
+      const envPath = path.join(process.cwd(), '.env');
+      let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
+      
+      const updateEnvVar = (key: string, value: string | undefined) => {
+        if (value === undefined) return;
+        const regex = new RegExp('^' + key + '=.*', 'm');
+        if (envContent.match(regex)) {
+          envContent = envContent.replace(regex, key + '=' + value);
+        } else {
+          envContent += '\n' + key + '=' + value;
+        }
+      };
+
+      updateEnvVar('TELEGRAM_BOT_TOKEN', token);
+      updateEnvVar('TELEGRAM_CHAT_ID', phoneId);
+      updateEnvVar('TELEGRAM_CHAT_ID', recipientPhone);
+      
+      fs.writeFileSync(envPath, envContent.trim() + '\n');
+
+      res.json({ success: true, message: 'Telegram configuration saved.' });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to save Telegram configuration.' });
+    }
+  });
+
+  app.post('/api/notifications/telegram/settings', async (req, res) => {
     try {
       const { floorBreachEnabled, highRiskEnabled, paymentRiskEnabled, weeklyBriefingEnabled, riskThreshold } = req.body;
-      const settings = saveWhatsAppAlertSettings({
+      const settings = saveTelegramAlertSettings({
         floorBreachEnabled: typeof floorBreachEnabled === 'boolean' ? floorBreachEnabled : undefined,
         highRiskEnabled: typeof highRiskEnabled === 'boolean' ? highRiskEnabled : undefined,
         paymentRiskEnabled: typeof paymentRiskEnabled === 'boolean' ? paymentRiskEnabled : undefined,
@@ -2203,8 +2248,8 @@ Find 3-5 real anomalies. Focus on: overdue invoices, concentration risk (single 
       });
       res.json({ success: true, settings });
     } catch (e: any) {
-      console.error('WhatsApp settings error:', e.message);
-      res.status(500).json({ error: 'Failed to save WhatsApp notification settings.' });
+      console.error('Telegram settings error:', e.message);
+      res.status(500).json({ error: 'Failed to save Telegram notification settings.' });
     }
   });
 
@@ -2244,7 +2289,9 @@ ${verifiedData?.counterfactuals || 'None calculated'}
 
 RULES:
 - CRITICAL: Strictly ZERO emojis. Never output any emojis or emoji-like symbols anywhere in your response.
+- CRITICAL: Do NOT output any internal chain of thought, <think> tags, or reasoning scratchpad. Provide ONLY your final concise response directly.
 - CRITICAL: If the user message is a greeting or pleasantry (such as "hi", "hello", "hey", "good morning", "how are you"), respond ONLY with a brief, professional greeting offering assistance (e.g. "Hello! How can I assist you with your business cash flow or scenario planning today?"). Do NOT provide unprompted analysis or dump counterfactual strategies for simple greetings.
+- If asked about personal or executive information (such as CEO, founder, or staff names) not present in the verified financial data, state succinctly that executive personnel information is not in the verified cash flow ledger and pivot back to operational liquidity metrics.
 - Only use verified numbers above. Never invent financial data.
 - When answering financial questions, be concise: 2-4 sentences maximum.
 - Always ground advice in specific numbers.

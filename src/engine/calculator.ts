@@ -15,12 +15,10 @@ import {
   WorkingCapitalMetrics,
 } from '../types';
 
-export function formatINR(val: number): string {
-  const lakhs = val / 100000;
-  if (Math.abs(lakhs) >= 1) {
-    return `₹${lakhs.toFixed(1)}L`;
-  }
-  return `₹${val.toLocaleString('en-IN')}`;
+import { formatCurrency, formatCurrencyFull, getCurrencySymbol, setActiveCurrency } from '../utils/currency';
+
+export function formatINR(val: number, currency?: string): string {
+  return formatCurrency(val, currency);
 }
 
 // ── Utility: seeded pseudo-random for reproducible Monte Carlo ───────────────

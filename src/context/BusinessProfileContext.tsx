@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { BusinessProfile, IndustryId, IndustryProfile } from '../types';
 import { getIndustryProfile } from '../config/industries';
 import { safeParseJson } from '../utils/safeJson';
+import { setActiveCurrency } from '../utils/currency';
 
 const DEFAULT_PROFILE: BusinessProfile = {
   id: 'shakti-config',
@@ -20,8 +21,14 @@ interface BusinessProfileContextValue {
   industryProfile: IndustryProfile;
   isLoading: boolean;
   isOnboarding: boolean;
-  /** Save business profile (name/industry). Financial records are preserved. */
-  saveProfile: (input: { businessName?: string; industryId?: IndustryId }) => Promise<BusinessProfile>;
+  /** Save business profile (name/industry/currency/country/cashFloor). Financial records are preserved. */
+  saveProfile: (input: {
+    businessName?: string;
+    industryId?: IndustryId;
+    currency?: string;
+    country?: string;
+    cashFloor?: number;
+  }) => Promise<BusinessProfile>;
   /** Switch to an industry demo dataset (clearly synthetic) and reload ledger data. */
   switchDemo: (industryId: IndustryId) => Promise<void>;
   /** Called by the onboarding flow — persists the chosen industry (with demo dataset when available). */
@@ -54,6 +61,9 @@ export const BusinessProfileProvider: React.FC<{ children: React.ReactNode }> = 
       .then((data) => {
         if (cancelled || !data?.profile) return;
         setBusinessProfile(data.profile);
+        if (data.profile.currency) {
+          setActiveCurrency(data.profile.currency);
+        }
         // First-visit onboarding: only when the user has never picked an industry.
         if (!localStorage.getItem('flowshield_onboarded')) {
           setIsOnboarding(true);
@@ -76,14 +86,26 @@ export const BusinessProfileProvider: React.FC<{ children: React.ReactNode }> = 
     try {
       const res = await fetch('/api/business/profile');
       const data = await safeParseJson(res);
-      if (data?.profile) setBusinessProfile(data.profile);
+      if (data?.profile) {
+        setBusinessProfile(data.profile);
+        if (data.profile.currency) setActiveCurrency(data.profile.currency);
+      }
     } catch (e) {
       console.error('Failed to refresh business profile:', e);
     }
   }, []);
 
   const saveProfile = useCallback(
-    async (input: { businessName?: string; industryId?: IndustryId }) => {
+    async (input: {
+      businessName?: string;
+      industryId?: IndustryId;
+      currency?: string;
+      country?: string;
+      cashFloor?: number;
+    }) => {
+      if (input.currency) {
+        setActiveCurrency(input.currency);
+      }
       try {
         const res = await fetch('/api/business/profile', {
           method: 'POST',
@@ -93,6 +115,7 @@ export const BusinessProfileProvider: React.FC<{ children: React.ReactNode }> = 
         const data = await safeParseJson(res);
         if (data?.profile) {
           setBusinessProfile(data.profile);
+          if (data.profile.currency) setActiveCurrency(data.profile.currency);
           return data.profile as BusinessProfile;
         }
       } catch (err) {
@@ -104,6 +127,9 @@ export const BusinessProfileProvider: React.FC<{ children: React.ReactNode }> = 
         ...businessProfile,
         businessName: input.businessName || businessProfile.businessName,
         industryId: input.industryId || businessProfile.industryId,
+        currency: input.currency || businessProfile.currency,
+        country: input.country || businessProfile.country,
+        cashFloor: input.cashFloor !== undefined ? input.cashFloor : businessProfile.cashFloor,
         updatedAt: new Date().toISOString(),
       };
       setBusinessProfile(fallbackProfile);

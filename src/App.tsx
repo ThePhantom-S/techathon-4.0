@@ -19,6 +19,7 @@ import { FinancialTimeMachine } from './components/FinancialTimeMachine';
 import { WhatIfSimulator } from './components/WhatIfSimulator';
 import { SettingsView } from './components/SettingsView';
 import { LoginView } from './components/LoginView';
+import { LiquidityAlertAndBriefingView } from './components/LiquidityNotifications';
 import { useTheme } from './context/ThemeContext';
 import { BusinessProfileProvider, useBusinessProfile } from './context/BusinessProfileContext';
 import { OnboardingOverlay } from './components/IndustrySelector';
@@ -67,8 +68,6 @@ function AppInner() {
   } = useBusinessProfile();
 
   const { isAuthenticated, isLoading: isAuthLoading, user, signOut, updateUserProfile } = useAuth();
-
-
 
   // Cleanly purge any stale legacy generic API key
   useEffect(() => {
@@ -419,6 +418,8 @@ function AppInner() {
       await saveProfile({
         businessName: profile.businessName,
         industryId: profile.industryId as any,
+        currency: profile.currency,
+        country: profile.country,
       });
 
       // Update user state immediately in UI
@@ -619,8 +620,6 @@ function AppInner() {
     }
   }, [user]);
 
-
-
   // Register the ledger-reload callback so industry demo switches refresh live data.
   // NOTE: setOnLedgerReloaded is a useState setter, so the callback must be wrapped
   // in a thunk — otherwise React treats the function as an updater and invokes it
@@ -704,7 +703,8 @@ function AppInner() {
     [currentCashVal, supplierDelayDays, autoCashFloor]
   );
 
-  const simulationResult = useMemo(
+  // Baseline simulation without overrides (to always preserve counterfactual options)
+  const baselineSimulationResult = useMemo(
     () =>
       runSimulationEngine(
         config,
@@ -713,10 +713,31 @@ function AppInner() {
         currentExpenses,
         demoInventory,
         demoSuppliers,
+        demoSales
+      ),
+    [config, currentTransactions, currentPayables, currentExpenses]
+  );
+
+  const simulationResult = useMemo(
+    () => {
+      if (!overrides) return baselineSimulationResult;
+      const resultWithOverrides = runSimulationEngine(
+        config,
+        currentTransactions,
+        currentPayables,
+        currentExpenses,
+        demoInventory,
+        demoSuppliers,
         demoSales,
         overrides
-      ),
-    [config, currentTransactions, currentPayables, currentExpenses, overrides]
+      );
+      // Ensure counterfactual list remains populated from baseline
+      return {
+        ...resultWithOverrides,
+        counterfactuals: baselineSimulationResult.counterfactuals,
+      };
+    },
+    [config, currentTransactions, currentPayables, currentExpenses, overrides, baselineSimulationResult]
   );
 
   // Export report action (PDF)

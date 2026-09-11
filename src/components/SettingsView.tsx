@@ -4,6 +4,8 @@ import { useTheme } from '../context/ThemeContext';
 
 import { IndustrySelector } from './IndustrySelector';
 import { BusinessProfile, IndustryProfile } from '../types';
+import { formatINR } from '../engine/calculator';
+import { getCurrencySymbol } from '../utils/currency';
 
 interface SettingsViewProps {
   cashFloor: number;
@@ -342,7 +344,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <div className="space-y-1.5">
             <div className="flex items-center justify-between mb-2">
               <label className={`text-xs font-semibold block ${isLight ? 'text-slate-700' : 'text-zinc-300'}`}>
-                Minimum Cash Floor Target (₹)
+                Minimum Cash Floor Target ({getCurrencySymbol()})
               </label>
               <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">
                 AUTO-COMPUTED
@@ -352,7 +354,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <div className={`w-full p-2.5 rounded-xl font-mono text-sm border font-bold flex items-center justify-between ${
               isLight ? 'bg-slate-50 border-slate-200 text-slate-900' : 'bg-zinc-900 border-zinc-800 text-zinc-100'
             }`}>
-              <span>₹{(cashFloor / 100000).toFixed(1)}L</span>
+              <span>{formatINR(cashFloor)}</span>
             </div>
             
             <p className={`text-[11px] leading-relaxed mt-2 ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>

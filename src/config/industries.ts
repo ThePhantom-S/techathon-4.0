@@ -20,6 +20,7 @@ import {
   IndustryScenario,
   KpiKind,
 } from '../types';
+import { formatCurrency } from '../utils/currency';
 
 const kpi = (id: string, label: string, description: string, kind: KpiKind, format: IndustryKpi['format'], inLakhs?: boolean): IndustryKpi => ({
   id,
@@ -946,10 +947,9 @@ export function industryRecommendationAction(
   return rec ? rec.action : fallbackTitle;
 }
 
-/** Builds the safe-to-commit question with formatted amount, e.g. "₹14.0L". */
+/** Builds the safe-to-commit question with formatted amount according to active currency. */
 export function buildSafeToCommitQuestion(profile: IndustryProfile, amount: number): string {
-  const lakhs = amount / 100000;
-  const amountText = lakhs >= 1 ? `₹${lakhs.toFixed(1)}L` : `₹${amount.toLocaleString('en-IN')}`;
+  const amountText = formatCurrency(amount);
   return profile.safeToCommit.questionTemplate
     .replace('{amount}', amountText)
     .replace('{entity}', profile.safeToCommit.entityLabel);

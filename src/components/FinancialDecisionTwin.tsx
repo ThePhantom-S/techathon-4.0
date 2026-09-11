@@ -318,17 +318,22 @@ export const FinancialDecisionTwin: React.FC<FinancialDecisionTwinProps> = ({
           </div>
         </div>
 
-        {/* Right 6 Cols: WHAT SHOULD I DO? */}
+        {/* Right 6 Cols: WHAT SHOULD I DO? / ACTION ASSESSMENT */}
         <div className={`lg:col-span-6 p-5 rounded-2xl border ${
           isLight ? 'bg-[#FAFAFA] border-[#EAEAEA] text-[#171717]' : 'bg-[#0A0A0A] border-[#222222] text-[#EDEDED]'
         }`}>
           <div className={`flex items-center justify-between border-b pb-3 mb-3 ${
             isLight ? 'border-[#EAEAEA]' : 'border-[#222222]'
           }`}>
-            <h3 className="text-xs font-mono font-medium text-[#22C55E] uppercase tracking-wider flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-[#22C55E]" />
-              ACTION ASSESSMENT
-            </h3>
+            <div>
+              <h3 className="text-xs font-mono font-medium text-[#22C55E] uppercase tracking-wider flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-[#22C55E]" />
+                ACTION ASSESSMENT
+              </h3>
+              <p className={`text-[11px] mt-0.5 ${isLight ? 'text-[#666666]' : 'text-[#A1A1AA]'}`}>
+                Click any simulated lever to project liquidity impact
+              </p>
+            </div>
             {activeCounterfactual && (
               <button
                 onClick={() => onSelectCounterfactual(null)}
@@ -336,16 +341,25 @@ export const FinancialDecisionTwin: React.FC<FinancialDecisionTwinProps> = ({
                   isLight ? 'text-[#666666] hover:text-[#171717]' : 'text-[#A1A1AA] hover:text-[#EDEDED]'
                 }`}
               >
-                Clear Selection
+                Reset Selection
               </button>
             )}
           </div>
 
           {/* Counterfactual Decisions Matrix */}
           <div className="space-y-2.5">
-            {counterfactuals.map((cf) => {
+            {counterfactuals.map((cf, index) => {
               const isSelected = activeCounterfactual === cf.id;
               const isSafe = cf.statusColor === 'success';
+              const rankNum = cf.rank || index + 1;
+              const titleText = industryProfile ? industryRecommendationTitle(industryProfile, cf.id, cf.title) : cf.title;
+              
+              // Specific subtitle / explanation per strategy
+              const strategySubtitle = 
+                cf.id === 'cf-3' ? 'Secures upfront cash to bridge supplier disbursement window' :
+                cf.id === 'cf-1' ? 'Defers non-critical raw material purchase orders by 20%' :
+                cf.id === 'cf-2' ? 'Renegotiates vendor payment cycles by +15 days' :
+                'Simulated operational adjustment';
 
               return (
                 <div
@@ -354,32 +368,75 @@ export const FinancialDecisionTwin: React.FC<FinancialDecisionTwinProps> = ({
                   className={`p-3.5 rounded-xl border transition-all duration-150 cursor-pointer text-xs active:scale-[0.98] ${
                     isSelected
                       ? isLight
-                        ? 'bg-[#F3F3F3] border-[#171717]'
-                        : 'bg-[#1A1A1A] border-[#EDEDED]'
+                        ? isSafe
+                          ? 'bg-emerald-50/70 border-emerald-500 shadow-sm ring-1 ring-emerald-500/30'
+                          : 'bg-indigo-50/70 border-indigo-500 shadow-sm ring-1 ring-indigo-500/30'
+                        : isSafe
+                          ? 'bg-emerald-950/20 border-emerald-500 shadow-sm ring-1 ring-emerald-500/30'
+                          : 'bg-indigo-950/20 border-indigo-500 shadow-sm ring-1 ring-indigo-500/30'
                       : isLight
-                        ? 'bg-[#FFFFFF] border-[#EAEAEA] hover:bg-[#FAFAFA]'
-                        : 'bg-[#111111] border-[#222222] hover:bg-[#1A1A1A]'
+                        ? 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                        : 'bg-[#111111] border-[#222222] hover:bg-[#1A1A1A] hover:border-zinc-700'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3 font-mono">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">
-                          {industryProfile ? industryRecommendationTitle(industryProfile, cf.id, cf.title) : cf.title}
-                        </span>
-                        {cf.id === 'cf-3' && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full border border-[#22C55E]/30 bg-[#22C55E]/10 text-[#22C55E]">
-                            Recommended
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <span className={`font-semibold shrink-0 mt-0.5 ${
+                        isSelected 
+                          ? isSafe ? 'text-emerald-600 dark:text-emerald-400' : 'text-indigo-600 dark:text-indigo-400'
+                          : isLight ? 'text-slate-400' : 'text-zinc-600'
+                      }`}>
+                        0{rankNum}
+                      </span>
+                      <div className="min-w-0 font-sans">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`font-semibold text-xs tracking-tight ${
+                            isLight ? 'text-slate-900' : 'text-zinc-100'
+                          }`}>
+                            {titleText}
                           </span>
-                        )}
+                          {rankNum === 1 && (
+                            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border font-bold ${
+                              isLight 
+                                ? 'bg-indigo-50 border-indigo-200 text-indigo-700' 
+                                : 'bg-indigo-500/15 border-indigo-500/30 text-indigo-300'
+                            }`}>
+                              ★ Recommended
+                            </span>
+                          )}
+                        </div>
+                        <div className={`text-[11px] font-sans mt-0.5 line-clamp-1 ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
+                          {strategySubtitle}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="text-right flex-shrink-0">
-                      <span className={`font-semibold ${isSafe ? 'text-[#22C55E]' : 'text-[#EF4444]'}`}>
+                    <div className="text-right flex-shrink-0 font-mono">
+                      <div className={`font-bold text-xs ${isSafe ? 'text-emerald-500' : 'text-red-500'}`}>
                         {formatINR(cf.minProjectedCash)}
-                      </span>
+                      </div>
+                      <div className={`text-[10px] ${isLight ? 'text-slate-400' : 'text-zinc-500'}`}>
+                        Min Cash Floor
+                      </div>
                     </div>
+                  </div>
+
+                  {/* Net benefit pill & state banner */}
+                  <div className={`mt-2.5 pt-2 border-t flex items-center justify-between text-[10px] font-mono ${
+                    isLight ? 'border-slate-100' : 'border-zinc-800/80'
+                  }`}>
+                    <span className={`flex items-center gap-1 font-medium ${
+                      isSafe ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
+                    }`}>
+                      <span className="text-[8px]">●</span> {cf.status}
+                    </span>
+                    <span className={`font-semibold ${
+                      cf.netBenefit > 0
+                        ? isLight ? 'text-indigo-600' : 'text-indigo-400'
+                        : isLight ? 'text-slate-400' : 'text-zinc-500'
+                    }`}>
+                      Net Gain: +{formatINR(Math.max(0, cf.netBenefit))}
+                    </span>
                   </div>
                 </div>
               );

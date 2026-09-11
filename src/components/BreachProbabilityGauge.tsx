@@ -2,13 +2,14 @@ import React from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { ShieldAlert, AlertTriangle, ShieldCheck, Activity, TrendingDown, TrendingUp, Minus } from 'lucide-react';
 import { Skeleton } from './ui/Skeleton';
+import { formatINR } from '../engine/calculator';
 
 export interface BreachProbabilityGaugeProps {
   breachProbability: number;  // 0-1 (e.g. 0.78 = 78%)
-  p10Cash: number;            // 10th percentile min cash in INR
+  p10Cash: number;            // 10th percentile min cash
   p50Cash: number;            // 50th percentile
   p90Cash: number;            // 90th percentile  
-  cashFloor: number;          // safety floor in INR
+  cashFloor: number;          // safety floor
   daysUntilBreach: number | null;
   hasBreach: boolean;
   isLoading?: boolean;
@@ -27,8 +28,8 @@ export const BreachProbabilityGauge: React.FC<BreachProbabilityGaugeProps> = ({
   const { theme } = useTheme();
   const isLight = theme === 'light';
 
-  // Format cash helper: e.g. ₹5.0L
-  const formatCash = (val: number): string => `₹${(val / 100000).toFixed(1)}L`;
+  // Format cash helper according to active currency
+  const formatCash = (val: number): string => formatINR(val);
 
   // Clamp probability between 0 and 0.84 (max 84% risk)
   const rawProb = breachProbability > 1 ? breachProbability / 100 : breachProbability;

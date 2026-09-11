@@ -71,8 +71,8 @@ function findSafeBoundary(
   let lo = 0;
   let hi = Math.max(maxAmount, 1);
   let best = 0;
-  // ~22 iterations of binary search → precise well below ₹1 (engine-cache backed)
-  for (let i = 0; i < 22; i++) {
+  // 32 iterations of binary search → absolute precision well below ₹1 for ranges up to 4 Billion
+  for (let i = 0; i < 32; i++) {
     const mid = (lo + hi) / 2;
     if (runAmount(mid)) {
       best = mid;
@@ -106,7 +106,10 @@ export function runSafeToCommitAnalysis(input: SafeToCommitInput): SafeToCommitR
   const cashImpact = baseline.minProjectedCash - committed.minProjectedCash;
 
   // Safe boundary for the commitment amount (keeps floor safe)
-  const safeBoundary = findSafeBoundary(input, cashFloor, input.config.current_cash * 2);
+  // We set a very high ceiling (Current Cash * 10 + 100M) in case massive receivables are coming.
+  // 30 iterations of binary search can precisely scan a range of over 1 Billion.
+  const absoluteCeiling = (input.config.current_cash * 10) + 100000000;
+  const safeBoundary = findSafeBoundary(input, cashFloor, absoluteCeiling);
 
   // Alternative actions — each is a real engine run with the commitment PLUS a lever.
   const altDefs: { id: string; overrides: Record<string, any> }[] = [

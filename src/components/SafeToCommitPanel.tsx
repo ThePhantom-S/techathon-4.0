@@ -14,6 +14,7 @@ import {
 import { Config, Expense, IndustryProfile, Payable, SafeToCommitResult, Transaction } from '../types';
 import { runSafeToCommitAnalysis } from '../engine/safeToCommit';
 import { formatINR } from '../engine/calculator';
+import { getCurrencySymbol } from '../utils/currency';
 import { useTheme } from '../context/ThemeContext';
 import { IndustryIcon } from './IndustryIcon';
 
@@ -54,7 +55,7 @@ export const SafeToCommitPanel: React.FC<SafeToCommitPanelProps> = ({
   }, [amountInput]);
 
   const question = industryProfile.safeToCommit.questionTemplate
-    .replace('{amount}', amount >= 100000 ? `₹${(amount / 100000).toFixed(1)}L` : `₹${amount.toLocaleString('en-IN')}`)
+    .replace('{amount}', formatINR(amount))
     .replace('{entity}', industryProfile.safeToCommit.entityLabel);
 
   const runAnalysis = () => {
@@ -157,7 +158,7 @@ export const SafeToCommitPanel: React.FC<SafeToCommitPanelProps> = ({
                   ? 'bg-slate-50 border-slate-200 focus:border-indigo-500 text-slate-900'
                   : 'bg-zinc-900 border-zinc-800 focus:border-indigo-500 text-white'
               }`}
-              placeholder="Commitment amount (₹)"
+              placeholder={`Commitment amount (${getCurrencySymbol()})`}
             />
           </div>
           <button
@@ -241,7 +242,17 @@ export const SafeToCommitPanel: React.FC<SafeToCommitPanelProps> = ({
             </span>
             <span className="flex items-center gap-1.5">
               <TrendingDown className="w-3.5 h-3.5 text-indigo-500" />
-              Safe commitment boundary: <strong>{formatINR(result.safeBoundary)}</strong>
+              Safe commitment boundary: 
+              <button 
+                onClick={() => {
+                  setAmountInput(String(result.safeBoundary));
+                  setHasRun(false);
+                }}
+                title="Click to apply this safe amount"
+                className="font-bold cursor-pointer hover:text-indigo-500 hover:underline transition-colors"
+              >
+                {formatINR(result.safeBoundary)}
+              </button>
             </span>
           </div>
 

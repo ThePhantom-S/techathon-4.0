@@ -118,8 +118,18 @@ export const ChatbotView: React.FC<ChatbotViewProps> = ({
     ccc: `${ccc} days`,
   };
 
+  const cleanMessageText = (text: string): string => {
+    if (!text) return '';
+    let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
+    cleaned = cleaned.replace(/<think>[\s\S]*$/gi, '');
+    cleaned = cleaned.replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '');
+    cleaned = cleaned.replace(/<reasoning>[\s\S]*$/gi, '');
+    return cleaned.trim();
+  };
+
   const renderFormattedMessage = (text: string) => {
-    const lines = text.split('\n');
+    const clean = cleanMessageText(text);
+    const lines = clean.split('\n');
     return lines.map((line, lineIdx) => {
       let isBullet = false;
       let cleanLine = line;
@@ -240,7 +250,7 @@ Once an API key is connected, conversational AI insights grounded in your verifi
       });
 
       const data = await res.json();
-      const aiReply = data.explanation || 'No response generated.';
+      const aiReply = cleanMessageText(data.explanation || 'No response generated.');
 
       const aiMsg: Message = {
         id: `ai-${Date.now()}`,

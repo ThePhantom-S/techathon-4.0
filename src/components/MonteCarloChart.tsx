@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { Config, Transaction, Payable, Expense, InventoryItem, Supplier, Sale } from '../types';
 import { demoConfig, demoTransactions, demoPayables, demoExpenses, demoInventory, demoSuppliers, demoSales } from '../engine/sampleData';
+import { Skeleton, KPISkeleton, ChartSkeleton } from './ui/Skeleton';
 
 interface MonteCarloChartProps {
   simulationResult?: any;
@@ -95,16 +96,28 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
   // Server data state
   const [serverBins, setServerBins] = useState<any[] | null>(null);
 
-  // Execute Monte Carlo — always client-side so parameters actually work
-  // and user's real data (not server demo data) is used
-  const executeRealSimulation = useCallback(() => {
+  // Run simulation strictly on manual button click with 3-second realistic calculation
+  const executeRealSimulation = useCallback((customParams?: {
+    runs?: number;
+    ar?: number;
+    delay?: number;
+    demand?: number;
+    seed?: boolean;
+  }) => {
     setIsSimulating(true);
     setServerBins(null);
 
-    // Use setTimeout to let the spinner render before blocking the thread
+    const targetRuns = customParams?.runs ?? runsCount;
+    const targetAr = customParams?.ar ?? arVol;
+    const targetDelay = customParams?.delay ?? payDelay;
+    const targetDemand = customParams?.demand ?? demandVol;
+    const targetSeed = customParams?.seed ?? useFixedSeed;
+
+    const startTime = performance.now();
+    const durationMs = 3000;
+
     setTimeout(() => {
       try {
-        const startTime = performance.now();
         const localResult = runMonteCarlo(
           config,
           activeTx,
@@ -114,12 +127,12 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
           activeSup,
           activeSales,
           undefined,
-          runsCount,
+          targetRuns,
           {
-            seed: useFixedSeed ? 42 : undefined,
-            arVolatility: arVol,
-            paymentDelayDays: payDelay,
-            demandVolatility: demandVol,
+            seed: targetSeed ? 42 : undefined,
+            arVolatility: targetAr,
+            paymentDelayDays: targetDelay,
+            demandVolatility: targetDemand,
             maxTrajectories: 50,
           }
         );
@@ -128,14 +141,11 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
       } finally {
         setIsSimulating(false);
       }
-    }, 10);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runsCount, arVol, payDelay, demandVol, useFixedSeed, activeTx, activePay, activeExp, activeInv, activeSup, activeSales, config]);
+    }, durationMs);
+  }, [activeTx, activePay, activeExp, activeInv, activeSup, activeSales, config, runsCount, arVol, payDelay, demandVol, useFixedSeed]);
 
-  // Re-run simulation whenever any parameter or dataset changes in real time
-  useEffect(() => {
-    executeRealSimulation();
-  }, [executeRealSimulation]);
+  // Only re-run simulation when the user explicitly clicks the button or changes datasets (not on every tab navigation)
+
 
   const p10 = mcResult.p10Cash;
   const p50 = mcResult.p50Cash;
@@ -402,7 +412,7 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
 
             {/* Primary Simulate Button */}
             <button
-              onClick={executeRealSimulation}
+              onClick={() => executeRealSimulation()}
               disabled={isSimulating}
               className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-mono font-bold uppercase tracking-wider text-white shadow-md transition-all duration-200 cursor-pointer ${
                 isSimulating
@@ -612,9 +622,35 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
               isLight ? 'bg-slate-50 border-slate-200' : 'bg-zinc-900/50 border-zinc-800'
             }`}>
               {isSimulating ? (
-                <div className="h-[320px] flex flex-col items-center justify-center gap-3">
-                  <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin" />
-                  <span className="text-xs font-mono text-zinc-400">Executing {runsCount} Stochastic Runs Across 90-Day Horizon...</span>
+                <div className="h-[340px] flex flex-col justify-between space-y-4 py-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <RefreshCw className="w-4 h-4 text-indigo-500 animate-spin" />
+                      <span className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                        Running {runsCount} Monte Carlo Stress Trials...
+                      </span>
+                    </div>
+                    <span className="text-xs font-mono font-medium text-zinc-400">
+                      Simulating Multi-Scenario Cash Shocks
+                    </span>
+                  </div>
+
+                  {/* Histogram Bars Skeleton */}
+                  <div className="h-[240px] flex items-end gap-1.5 px-2">
+                    {[35, 60, 45, 80, 95, 70, 85, 90, 65, 50, 40, 30, 20, 15, 10].map((h, idx) => (
+                      <div 
+                        key={idx} 
+                        className="flex-1 rounded-t animate-pulse bg-slate-200 dark:bg-zinc-800/80" 
+                        style={{ height: `${h}%` }} 
+                      />
+                    ))}
+                  </div>
+
+                  <div className="flex justify-between text-[10px] font-mono text-zinc-400 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                    <span>Evaluating Downside (P10)</span>
+                    <span>Median Cash Flow (P50)</span>
+                    <span>Solvency Bounds (P90)</span>
+                  </div>
                 </div>
               ) : (
                 <>
@@ -804,56 +840,65 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
               )}
             </div>
 
-            {/* 4 Stats Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 font-mono">
-              <div className={`p-4 rounded-xl border shadow-sm transition-all ${
-                isLight ? 'bg-white border-slate-200 hover:border-orange-300' : 'bg-zinc-900/80 border-zinc-800 hover:border-orange-500/40'
-              }`}>
-                <div className="flex items-center gap-2 mb-2">
-                  <TrendingDown className="w-4 h-4 text-orange-500 shrink-0" />
-                  <span className={`text-xs font-semibold ${isLight ? 'text-slate-700' : 'text-zinc-300'}`}>P10 (Downside)</span>
-                </div>
-                <div className="text-2xl font-bold text-orange-500 tracking-tight">{formatINR(p10)}</div>
-                <p className={`text-xs mt-1.5 font-medium ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>10% of outcomes worse</p>
+            {/* 4 Stats Cards / Skeletons */}
+            {isSimulating ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <KPISkeleton />
+                <KPISkeleton />
+                <KPISkeleton />
+                <KPISkeleton />
               </div>
-              
-              <div className={`p-4 rounded-xl border shadow-sm transition-all ${
-                isLight ? 'bg-white border-slate-200 hover:border-amber-300' : 'bg-zinc-900/80 border-zinc-800 hover:border-amber-500/40'
-              }`}>
-                <div className="flex items-center gap-2 mb-2">
-                  <TrendingUp className="w-4 h-4 text-amber-500 shrink-0" />
-                  <span className={`text-xs font-semibold ${isLight ? 'text-slate-700' : 'text-zinc-300'}`}>P50 (Median)</span>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 font-mono">
+                <div className={`p-4 rounded-xl border shadow-sm transition-all ${
+                  isLight ? 'bg-white border-slate-200 hover:border-orange-300' : 'bg-zinc-900/80 border-zinc-800 hover:border-orange-500/40'
+                }`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <TrendingDown className="w-4 h-4 text-orange-500 shrink-0" />
+                    <span className={`text-xs font-semibold ${isLight ? 'text-slate-700' : 'text-zinc-300'}`}>P10 (Downside)</span>
+                  </div>
+                  <div className="text-2xl font-bold text-orange-500 tracking-tight">{formatINR(p10)}</div>
+                  <p className={`text-xs mt-1.5 font-medium ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>10% of outcomes worse</p>
                 </div>
-                <div className={`text-2xl font-bold tracking-tight ${p50 < floor ? 'text-amber-500' : isLight ? 'text-emerald-600' : 'text-emerald-400'}`}>{formatINR(p50)}</div>
-                <p className={`text-xs mt-1.5 font-medium ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>Median outcome</p>
+                
+                <div className={`p-4 rounded-xl border shadow-sm transition-all ${
+                  isLight ? 'bg-white border-slate-200 hover:border-amber-300' : 'bg-zinc-900/80 border-zinc-800 hover:border-amber-500/40'
+                }`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <TrendingUp className="w-4 h-4 text-amber-500 shrink-0" />
+                    <span className={`text-xs font-semibold ${isLight ? 'text-slate-700' : 'text-zinc-300'}`}>P50 (Median)</span>
+                  </div>
+                  <div className={`text-2xl font-bold tracking-tight ${p50 < floor ? 'text-amber-500' : isLight ? 'text-emerald-600' : 'text-emerald-400'}`}>{formatINR(p50)}</div>
+                  <p className={`text-xs mt-1.5 font-medium ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>Median outcome</p>
+                </div>
+                
+                <div className={`p-4 rounded-xl border shadow-sm transition-all ${
+                  isLight ? 'bg-white border-slate-200 hover:border-emerald-300' : 'bg-zinc-900/80 border-zinc-800 hover:border-emerald-500/40'
+                }`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <TrendingUp className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span className={`text-xs font-semibold ${isLight ? 'text-slate-700' : 'text-zinc-300'}`}>P90 (Upside)</span>
+                  </div>
+                  <div className={`text-2xl font-bold tracking-tight ${isLight ? 'text-emerald-600' : 'text-emerald-400'}`}>{formatINR(p90)}</div>
+                  <p className={`text-xs mt-1.5 font-medium ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>90% of outcomes better</p>
+                </div>
+                
+                <div className={`p-4 rounded-xl border shadow-sm transition-all ${
+                  breachProb > 0.5
+                    ? isLight ? 'bg-red-50/60 border-red-200' : 'bg-red-500/10 border-red-500/30'
+                    : isLight ? 'bg-white border-slate-200 hover:border-emerald-300' : 'bg-zinc-900/80 border-zinc-800 hover:border-emerald-500/40'
+                }`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className={`w-4 h-4 shrink-0 ${breachProb > 0.5 ? 'text-red-500' : isLight ? 'text-emerald-600' : 'text-emerald-400'}`} />
+                    <span className={`text-xs font-semibold ${breachProb > 0.5 ? 'text-red-600' : isLight ? 'text-slate-700' : 'text-zinc-300'}`}>Breach Risk</span>
+                  </div>
+                  <div className={`text-2xl font-bold tracking-tight ${breachProb > 0.5 ? 'text-red-500' : isLight ? 'text-emerald-600' : 'text-emerald-400'}`}>
+                    {(breachProb * 100).toFixed(0)}%
+                  </div>
+                  <p className={`text-xs mt-1.5 font-medium ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>{totalRuns} scenarios ({breachCount} breaches)</p>
+                </div>
               </div>
-              
-              <div className={`p-4 rounded-xl border shadow-sm transition-all ${
-                isLight ? 'bg-white border-slate-200 hover:border-emerald-300' : 'bg-zinc-900/80 border-zinc-800 hover:border-emerald-500/40'
-              }`}>
-                <div className="flex items-center gap-2 mb-2">
-                  <TrendingUp className="w-4 h-4 text-emerald-500 shrink-0" />
-                  <span className={`text-xs font-semibold ${isLight ? 'text-slate-700' : 'text-zinc-300'}`}>P90 (Upside)</span>
-                </div>
-                <div className={`text-2xl font-bold tracking-tight ${isLight ? 'text-emerald-600' : 'text-emerald-400'}`}>{formatINR(p90)}</div>
-                <p className={`text-xs mt-1.5 font-medium ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>90% of outcomes better</p>
-              </div>
-              
-              <div className={`p-4 rounded-xl border shadow-sm transition-all ${
-                breachProb > 0.5
-                  ? isLight ? 'bg-red-50/60 border-red-200' : 'bg-red-500/10 border-red-500/30'
-                  : isLight ? 'bg-white border-slate-200 hover:border-emerald-300' : 'bg-zinc-900/80 border-zinc-800 hover:border-emerald-500/40'
-              }`}>
-                <div className="flex items-center gap-2 mb-2">
-                  <AlertTriangle className={`w-4 h-4 shrink-0 ${breachProb > 0.5 ? 'text-red-500' : isLight ? 'text-emerald-600' : 'text-emerald-400'}`} />
-                  <span className={`text-xs font-semibold ${breachProb > 0.5 ? 'text-red-600' : isLight ? 'text-slate-700' : 'text-zinc-300'}`}>Breach Risk</span>
-                </div>
-                <div className={`text-2xl font-bold tracking-tight ${breachProb > 0.5 ? 'text-red-500' : isLight ? 'text-emerald-600' : 'text-emerald-400'}`}>
-                  {(breachProb * 100).toFixed(0)}%
-                </div>
-                <p className={`text-xs mt-1.5 font-medium ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>{totalRuns} scenarios ({breachCount} breaches)</p>
-              </div>
-            </div>
+            )}
 
             {/* Clear Statement */}
             <div className={`p-4 rounded-xl border ${
@@ -1027,7 +1072,7 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
                     Asymptotic Bounds
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 my-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 my-3">
                   <div className={`p-3 rounded-xl border text-center ${
                     isLight ? 'bg-indigo-50/40 border-indigo-200' : 'bg-zinc-900 border-zinc-800'
                   }`}>
@@ -1067,31 +1112,10 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
                       Two-sided Wald
                     </div>
                   </div>
-
-                  <div className={`p-3 rounded-xl border text-center ${
-                    isLight ? 'bg-amber-50/40 border-amber-200' : 'bg-zinc-900 border-zinc-800'
-                  }`}>
-                    <span className={`block text-[10px] uppercase tracking-wider font-semibold ${
-                      isLight ? 'text-slate-600' : 'text-zinc-400'
-                    }`}>
-                      Execution Speed
-                    </span>
-                    <div className={`text-xs font-bold font-mono mt-1 ${
-                      isLight ? 'text-amber-800' : 'text-amber-400'
-                    }`}>
-                      {(totalRuns * 90).toLocaleString()} evals
-                    </div>
-                    <div className={`text-[10px] font-bold mt-0.5 ${
-                      isLight ? 'text-amber-700' : 'text-amber-300'
-                    }`}>
-                      {mcResult.executionTimeMs < 1 ? '<1' : mcResult.executionTimeMs.toFixed(1)}ms
-                    </div>
-                  </div>
                 </div>
                 <div className={`text-xs space-y-1.5 ${isLight ? 'text-slate-700' : 'text-zinc-400'}`}>
                   <p>Statistical confidence guarantees across <strong>N = {totalRuns}</strong> trials:</p>
                   <p>• Asymptotic Standard Error bounded at <strong className={isLight ? 'text-slate-900' : 'text-zinc-200'}>±{(se * 100).toFixed(2)}%</strong></p>
-                  <p>• Vectorized Float64Array execution completed in <strong className={isLight ? 'text-slate-900' : 'text-zinc-200'}>{mcResult.executionTimeMs < 1 ? '<1' : mcResult.executionTimeMs.toFixed(1)}ms</strong></p>
                 </div>
               </div>
             </div>

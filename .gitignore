@@ -12,10 +12,12 @@ coverage/
 cashshock_local_db.json
 cashshock_postgres_db/
 pgdata_local/
+.pgdata/
 
 # Local runtime state
 flowshield_connector_state.json
 flowshield_whatsapp_settings.json
+flowshield_telegram_settings.json
 flowshield_business_profile.json
 
 # OS files

@@ -3,6 +3,8 @@ import { Expense, InventoryItem, Payable, Supplier, Transaction } from '../types
 import { Upload, Download, CheckCircle2, Database } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { generateBankStatementTemplate, generateCashShockTemplate } from '../engine/csvParser';
+import { formatINR } from '../engine/calculator';
+import { formatCurrencyFull } from '../utils/currency';
 
 import { TableSkeleton } from './ui/Skeleton';
 
@@ -220,7 +222,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
                   <td className="p-3">{t.expected_payment_date}</td>
                   <td className={`p-3 font-sans ${isLight ? 'text-[#171717]' : 'text-[#EDEDED]'}`}>{t.customer}</td>
                   <td className="p-3 text-right font-semibold text-[#22C55E]">
-                    ₹{(t.invoice_amount / 100000).toFixed(1)}L
+                    {formatINR(t.invoice_amount)}
                   </td>
                   <td className="p-3 text-center">{(t.collection_probability * 100).toFixed(0)}%</td>
                   <td className="p-3">
@@ -260,7 +262,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
                   <td className={`p-3 font-sans ${isLight ? 'text-[#171717]' : 'text-[#EDEDED]'}`}>{p.supplier}</td>
                   <td className={isLight ? 'text-[#666666]' : 'text-[#A1A1AA]'}>{p.category}</td>
                   <td className="p-3 text-right font-semibold text-[#EF4444]">
-                    -₹{(p.amount / 100000).toFixed(1)}L
+                    -{formatINR(p.amount)}
                   </td>
                   <td className="p-3">
                     <span className={`px-2 py-0.5 rounded-full border text-[10px] ${
@@ -284,7 +286,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
             }`}>
               <tr>
                 <th className="p-3">SKU</th>
-                <th className="p-3">Component Name</th>
+                <th className="p-3">Item Name</th>
                 <th className="p-3 text-right">Quantity</th>
                 <th className="p-3 text-right">Unit Cost</th>
                 <th className="p-3 text-right">Safety Stock</th>
@@ -296,7 +298,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
                   <td className="p-3 font-semibold">{item.SKU}</td>
                   <td className={`p-3 font-sans ${isLight ? 'text-[#171717]' : 'text-[#EDEDED]'}`}>{item.name}</td>
                   <td className="p-3 text-right">{item.quantity}</td>
-                  <td className="p-3 text-right">₹{item.unitCost}</td>
+                  <td className="p-3 text-right">{formatCurrencyFull(item.unitCost)}</td>
                   <td className="p-3 text-right">{item.safetyStock}</td>
                 </tr>
               ))}
@@ -347,7 +349,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
                   <td className="p-3 font-semibold">{e.id}</td>
                   <td className="p-3">{e.date}</td>
                   <td className="p-3 font-sans">{e.category}</td>
-                  <td className="p-3 text-right font-semibold text-[#EF4444]">-₹{(e.amount / 100000).toFixed(1)}L</td>
+                  <td className="p-3 text-right font-semibold text-[#EF4444]">-{formatINR(e.amount)}</td>
                 </tr>
               ))}
             </tbody>

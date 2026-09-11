@@ -33,220 +33,245 @@ export function generatePDFReport(data: PDFData): void {
     <html>
     <head>
       <meta charset="UTF-8">
+      <title>Cash Flow Intelligence Report</title>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
       <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 40px; color: #1a1a1a; }
-        .header { text-align: center; border-bottom: 3px solid #4F46E5; padding-bottom: 20px; margin-bottom: 30px; }
-        .company-name { font-size: 28px; font-weight: bold; color: #4F46E5; }
-        .gstin { font-size: 14px; color: #666; margin-top: 5px; }
-        .report-title { font-size: 20px; margin-top: 15px; color: #333; }
-        .date { font-size: 12px; color: #888; margin-top: 5px; }
-        .section { margin-bottom: 25px; }
-        .section-title { font-size: 16px; font-weight: bold; color: #4F46E5; border-bottom: 2px solid #E5E7EB; padding-bottom: 8px; margin-bottom: 15px; }
-        .kpi-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
-        .kpi-card { background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; padding: 15px; }
-        .kpi-label { font-size: 12px; color: #666; margin-bottom: 5px; }
-        .kpi-value { font-size: 24px; font-weight: bold; }
-        .kpi-value.positive { color: #10B981; }
-        .kpi-value.negative { color: #EF4444; }
-        .kpi-value.warning { color: #F59E0B; }
-        .risk-badge { display: inline-block; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
-        .risk-high { background: #FEE2E2; color: #DC2626; }
-        .risk-low { background: #D1FAE5; color: #059669; }
-        .table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        .table th { background: #4F46E5; color: white; padding: 10px; text-align: left; font-size: 12px; }
-        .table td { padding: 10px; border-bottom: 1px solid #E5E7EB; font-size: 12px; }
-        .recommendation { background: #EFF6FF; border-left: 4px solid #4F46E5; padding: 15px; margin-top: 15px; border-radius: 0 8px 8px 0; }
-        .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #E5E7EB; font-size: 11px; color: #888; }
-        .status-safe { color: #10B981; }
-        .status-warning { color: #F59E0B; }
-        .status-danger { color: #EF4444; }
+        @page { size: A4; margin: 12mm; }
+        body { 
+          font-family: 'Inter', sans-serif; 
+          color: #1f2937; 
+          margin: 0; 
+          padding: 20px; 
+          background-color: #fff;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .report-container { max-width: 1000px; margin: 0 auto; }
+        .header { 
+          display: flex; 
+          justify-content: space-between; 
+          align-items: flex-end; 
+          border-bottom: 2px solid #e5e7eb; 
+          padding-bottom: 20px; 
+          margin-bottom: 30px; 
+        }
+        .brand { display: flex; flex-direction: column; }
+        .company-name { font-size: 28px; font-weight: 800; color: #111827; letter-spacing: -0.02em; }
+        .gstin { font-size: 13px; color: #6b7280; margin-top: 4px; font-weight: 500; }
+        .report-meta { text-align: right; }
+        .report-title { font-size: 16px; font-weight: 700; color: #4f46e5; text-transform: uppercase; letter-spacing: 0.05em; }
+        .date { font-size: 13px; color: #6b7280; margin-top: 4px; font-weight: 500; }
+        
+        .section { margin-bottom: 32px; page-break-inside: avoid; }
+        .section-title { 
+          font-size: 14px; 
+          font-weight: 700; 
+          color: #374151; 
+          text-transform: uppercase; 
+          letter-spacing: 0.06em; 
+          border-bottom: 1px solid #e5e7eb; 
+          padding-bottom: 8px; 
+          margin-bottom: 16px; 
+        }
+        
+        .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        .kpi-card { background: #f9fafb; border: 1px solid #f3f4f6; border-radius: 8px; padding: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
+        .kpi-label { font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 8px; }
+        .kpi-value { font-size: 20px; font-weight: 700; color: #111827; }
+        
+        .positive { color: #059669 !important; }
+        .negative { color: #dc2626 !important; }
+        .warning { color: #d97706 !important; }
+        
+        .risk-badge { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; }
+        .risk-high { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+        .risk-low { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+        
+        .table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 8px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
+        .table th { background: #f9fafb; color: #4b5563; padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em; border-bottom: 1px solid #e5e7eb; }
+        .table td { padding: 12px 16px; border-bottom: 1px solid #e5e7eb; font-size: 13px; color: #374151; font-weight: 500; }
+        .table tr:last-child td { border-bottom: none; }
+        .table tbody tr:nth-child(even) { background-color: #fdfdfd; }
+        
+        .recommendation { background: #eff6ff; border: 1px solid #bfdbfe; border-left: 4px solid #3b82f6; padding: 16px 20px; margin-top: 20px; border-radius: 4px 8px 8px 4px; font-size: 14px; line-height: 1.5; color: #1e3a8a; }
+        
+        .footer { text-align: center; margin-top: 50px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 11px; color: #9ca3af; font-weight: 500; }
+        
+        .status-pill { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+        .status-safe { background: #ecfdf5; color: #059669; }
+        .status-warn { background: #fffbeb; color: #d97706; }
+        .status-dang { background: #fef2f2; color: #dc2626; }
+        .status-pend { background: #f3f4f6; color: #4b5563; }
       </style>
     </head>
     <body>
-      <div class="header">
-        <div class="company-name">${companyName}</div>
-        <div class="gstin">GSTIN: ${gstin}</div>
-        <div class="report-title">Cash Flow Intelligence Report</div>
-        <div class="date">Generated: ${new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
-      </div>
+      <div class="report-container">
+        <div class="header">
+          <div class="brand">
+            <div class="company-name">${companyName}</div>
+            <div class="gstin">GSTIN: ${gstin}</div>
+          </div>
+          <div class="report-meta">
+            <div class="report-title">Cash Flow Intelligence Report</div>
+            <div class="date">Generated: ${new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+          </div>
+        </div>
 
-      <div class="section">
-        <div class="section-title">Executive Summary</div>
-        <div class="kpi-grid">
-          <div class="kpi-card">
-            <div class="kpi-label">Current Cash Position</div>
-            <div class="kpi-value">${formatINR(currentCash)}</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Minimum Projected (90 Days)</div>
-            <div class="kpi-value ${minProjectedCash < cashFloor ? 'negative' : 'positive'}">${formatINR(minProjectedCash)}</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Safety Floor</div>
-            <div class="kpi-value">${formatINR(cashFloor)}</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Risk Status</div>
-            <div class="kpi-value">
-              <span class="risk-badge ${hasBreach ? 'risk-high' : 'risk-low'}">
-                ${hasBreach ? 'HIGH RISK' : 'LOW RISK'}
-              </span>
+        <div class="section">
+          <div class="section-title">Executive Summary</div>
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-label">Current Cash Position</div>
+              <div class="kpi-value">${formatINR(currentCash)}</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Min Projected (90 Days)</div>
+              <div class="kpi-value ${minProjectedCash < cashFloor ? 'negative' : 'positive'}">${formatINR(minProjectedCash)}</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Policy Safety Floor</div>
+              <div class="kpi-value">${formatINR(cashFloor)}</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Liquidity Risk Status</div>
+              <div>
+                <span class="risk-badge ${hasBreach ? 'risk-high' : 'risk-low'}">
+                  ${hasBreach ? 'CRITICAL RISK' : 'HEALTHY'}
+                </span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div class="section">
-        <div class="section-title">Risk Analysis</div>
-        <div class="kpi-grid">
-          <div class="kpi-card">
-            <div class="kpi-label">Breach Probability (500 Scenarios)</div>
-            <div class="kpi-value ${breachProbability > 0.5 ? 'negative' : 'positive'}">${(breachProbability * 100).toFixed(0)}%</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Days Until Breach</div>
-            <div class="kpi-value ${daysUntilBreach && daysUntilBreach < 30 ? 'warning' : 'positive'}">${daysUntilBreach ? `${daysUntilBreach} Days` : 'No Breach'}</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Worst Case (P10)</div>
-            <div class="kpi-value negative">${formatINR(p10Cash)}</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Best Case (P90)</div>
-            <div class="kpi-value positive">${formatINR(p90Cash)}</div>
+        <div class="section">
+          <div class="section-title">Forecast &amp; Volatility Analysis</div>
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-label">Breach Probability</div>
+              <div class="kpi-value ${breachProbability > 0.5 ? 'negative' : 'positive'}">${(breachProbability * 100).toFixed(0)}%</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Time to Breach</div>
+              <div class="kpi-value ${daysUntilBreach && daysUntilBreach < 30 ? 'warning' : 'positive'}">${daysUntilBreach ? `${daysUntilBreach} Days` : 'Safe (>90d)'}</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Worst Case (P10)</div>
+              <div class="kpi-value negative">${formatINR(p10Cash)}</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Best Case (P90)</div>
+              <div class="kpi-value positive">${formatINR(p90Cash)}</div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="section">
-        <div class="section-title">Working Capital Metrics</div>
-        <div class="kpi-grid">
-          <div class="kpi-card">
-            <div class="kpi-label">Days Sales Outstanding (DSO)</div>
-            <div class="kpi-value">${workingCapital.dso} Days</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Days Inventory Outstanding (DIO)</div>
-            <div class="kpi-value">${workingCapital.dio} Days</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Days Payable Outstanding (DPO)</div>
-            <div class="kpi-value">${workingCapital.dpo} Days</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Cash Conversion Cycle (CCC)</div>
-            <div class="kpi-value ${workingCapital.ccc > 60 ? 'warning' : 'positive'}">${workingCapital.ccc} Days</div>
+        <div class="section">
+          <div class="section-title">Working Capital Efficiency</div>
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-label">Days Sales Outstanding</div>
+              <div class="kpi-value">${workingCapital.dso} Days</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Days Inventory (DIO)</div>
+              <div class="kpi-value">${workingCapital.dio} Days</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Days Payable (DPO)</div>
+              <div class="kpi-value">${workingCapital.dpo} Days</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Cash Conversion Cycle</div>
+              <div class="kpi-value ${workingCapital.ccc > 60 ? 'warning' : 'positive'}">${workingCapital.ccc} Days</div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="section">
-        <div class="section-title">Top Cash Outflows</div>
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Vendor/Supplier</th>
-              <th>Amount</th>
-              <th>Due Date</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${driverAnalysis.topOutflows.slice(0, 5).map(outflow => `
+        <div class="section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+          <div>
+            <div class="section-title">Key Outflows (Next 30 Days)</div>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Vendor / Payable</th>
+                  <th style="text-align: right;">Amount</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${driverAnalysis.topOutflows.slice(0, 5).map(outflow => `
+                  <tr>
+                    <td>${outflow.entity}</td>
+                    <td class="negative" style="text-align: right;">${formatINR(outflow.amount)}</td>
+                    <td><span class="status-pill status-dang">${outflow.statusTag || 'DUE'}</span></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <div class="section-title">Key Inflows (Next 30 Days)</div>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Customer / Receivable</th>
+                  <th style="text-align: right;">Amount</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${driverAnalysis.topInflows.slice(0, 5).map(inflow => `
+                  <tr>
+                    <td>${inflow.entity}</td>
+                    <td class="positive" style="text-align: right;">${formatINR(inflow.amount)}</td>
+                    <td><span class="status-pill status-pend">${inflow.statusTag || 'PENDING'}</span></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        ${counterfactuals.length > 0 ? `
+        <div class="section">
+          <div class="section-title">Decision Impact Analysis &amp; Strategies</div>
+          <table class="table">
+            <thead>
               <tr>
-                <td>${outflow.entity}</td>
-                <td class="negative">${formatINR(outflow.amount)}</td>
-                <td>${outflow.date}</td>
-                <td>${outflow.statusTag || 'DUE'}</td>
+                <th>Strategy Name</th>
+                <th style="text-align: right;">Projected Min Cash</th>
+                <th>Outcome Status</th>
+                <th style="text-align: center;">Rank</th>
               </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-
-      <div class="section">
-        <div class="section-title">Top Cash Inflows</div>
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Customer</th>
-              <th>Amount</th>
-              <th>Expected Date</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${driverAnalysis.topInflows.slice(0, 5).map(inflow => `
-              <tr>
-                <td>${inflow.entity}</td>
-                <td class="positive">${formatINR(inflow.amount)}</td>
-                <td>${inflow.date}</td>
-                <td>${inflow.statusTag || 'PENDING'}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-
-      ${counterfactuals.length > 0 ? `
-      <div class="section">
-        <div class="section-title">Recommended Strategies</div>
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Strategy</th>
-              <th>Projected Min Cash</th>
-              <th>Status</th>
-              <th>Rank</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${counterfactuals.map(cf => `
-              <tr>
-                <td>${cf.title}</td>
-                <td class="${cf.minProjectedCash >= cashFloor ? 'positive' : 'negative'}">${formatINR(cf.minProjectedCash)}</td>
-                <td class="${cf.statusColor === 'success' ? 'status-safe' : cf.statusColor === 'warning' ? 'status-warning' : 'status-danger'}">${cf.status}</td>
-                <td>#${cf.rank}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-        <div class="recommendation">
-          <strong>AI Recommendation:</strong> Based on 500-scenario liquidity risk engine runs, the recommended strategy is <strong>${counterfactuals[0]?.title}</strong> which provides a minimum cash position of <strong>${formatINR(counterfactuals[0]?.minProjectedCash)}</strong>.
-        </div>
-      </div>
-      ` : ''}
-
-      <div class="section">
-        <div class="section-title">Simulation Parameters</div>
-        <div class="kpi-grid">
-          <div class="kpi-card">
-            <div class="kpi-label">Supplier Delay Applied</div>
-            <div class="kpi-value">${supplierDelayDays} Days</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Simulation Horizon</div>
-            <div class="kpi-value">90 Days</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Liquidity Risk Engine Runs</div>
-            <div class="kpi-value">500</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Engine Version</div>
-            <div class="kpi-value">v2.0</div>
+            </thead>
+            <tbody>
+              ${counterfactuals.map(cf => `
+                <tr>
+                  <td><strong>${cf.title}</strong></td>
+                  <td style="text-align: right;" class="${cf.minProjectedCash >= cashFloor ? 'positive' : 'negative'}">${formatINR(cf.minProjectedCash)}</td>
+                  <td>
+                    <span class="status-pill ${cf.statusColor === 'success' ? 'status-safe' : cf.statusColor === 'warning' ? 'status-warn' : 'status-dang'}">
+                      ${cf.status}
+                    </span>
+                  </td>
+                  <td style="text-align: center; font-weight: 700;">#${cf.rank}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div class="recommendation">
+            <strong>SYSTEM RECOMMENDATION:</strong> Based on 500-scenario liquidity risk runs, the optimal strategy is <strong>${counterfactuals[0]?.title}</strong>, which secures a minimum cash position of <strong>${formatINR(counterfactuals[0]?.minProjectedCash)}</strong> and mitigates immediate breach risk.
           </div>
         </div>
-      </div>
+        ` : ''}
 
-      <div class="footer">
-        <p>FlowShield - AI-Powered Cash Flow Intelligence Platform</p>
-        <p>This report is generated from verified deterministic engine calculations.</p>
-        <p>For questions, contact: support@flowshield.ai</p>
+        <div class="footer">
+          <p>CONFIDENTIAL BUSINESS REPORT • GENERATED BY FLOWSHIELD AI</p>
+          <p style="margin-top: 4px; font-size: 10px; color: #d1d5db;">Powered by verified deterministic financial engine calculations.</p>
+        </div>
       </div>
     </body>
-    </html>
-  `;
+    </html>`;
 
   // Create a new window with the HTML content
   const printWindow = window.open('', '_blank');

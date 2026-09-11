@@ -451,7 +451,7 @@ export async function initDb() {
   `);
 
   await dbQuery(`
-    CREATE TABLE IF NOT EXISTS whatsapp_notifications (
+    CREATE TABLE IF NOT EXISTS telegram_notifications (
       id SERIAL PRIMARY KEY,
       business_id VARCHAR(100) DEFAULT 'shakti-config',
       phone_number VARCHAR(50),
@@ -818,10 +818,10 @@ export async function resetToBaseline() {
   await initDb();
 }
 
-// ── WhatsApp Notification Audit Logging ───────────────────────────────────
+// ── Telegram Notification Audit Logging ───────────────────────────────────
 // Stores safe metadata only — never access tokens or secrets.
 
-export interface WhatsAppNotificationRecord {
+export interface TelegramNotificationRecord {
   alertType: string;
   phoneNumber?: string;
   riskLevel?: string;
@@ -829,14 +829,14 @@ export interface WhatsAppNotificationRecord {
   messageId?: string;
   status: 'SENT' | 'FAILED';
   errorMessage?: string;
-  /** Read-only — populated by getRecentWhatsAppNotifications(). */
+  /** Read-only — populated by getRecentTelegramNotifications(). */
   sentAt?: string;
 }
 
-export async function logWhatsAppNotification(record: WhatsAppNotificationRecord) {
+export async function logTelegramNotification(record: TelegramNotificationRecord) {
   if (activeEngine === 'supabase' && supabase) {
     try {
-      await supabase.from('whatsapp_notifications').insert({
+      await supabase.from('telegram_notifications').insert({
         business_id: 'shakti-config',
         phone_number: record.phoneNumber || null,
         alert_type: record.alertType,
@@ -848,20 +848,20 @@ export async function logWhatsAppNotification(record: WhatsAppNotificationRecord
       });
 
       const details = record.status === 'SENT'
-        ? `WhatsApp ${record.alertType} sent (risk: ${record.riskLevel || 'n/a'}, breach prob: ${record.breachProbability !== undefined ? Math.round(record.breachProbability * 100) + '%' : 'n/a'})`
-        : `WhatsApp ${record.alertType} failed (risk: ${record.riskLevel || 'n/a'})`;
+        ? `Telegram ${record.alertType} sent (risk: ${record.riskLevel || 'n/a'}, breach prob: ${record.breachProbability !== undefined ? Math.round(record.breachProbability * 100) + '%' : 'n/a'})`
+        : `Telegram ${record.alertType} failed (risk: ${record.riskLevel || 'n/a'})`;
       await supabase.from('audit_logs').insert({
         action: 'WHATSAPP_' + record.status,
         details,
       });
       return;
     } catch (sbErr) {
-      console.warn('logWhatsAppNotification Supabase error:', sbErr);
+      console.warn('logTelegramNotification Supabase error:', sbErr);
     }
   }
 
   await dbQuery(`
-    INSERT INTO whatsapp_notifications (
+    INSERT INTO telegram_notifications (
       business_id, phone_number, alert_type, risk_level, breach_probability,
       message_id, status, error_message
     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -877,19 +877,19 @@ export async function logWhatsAppNotification(record: WhatsAppNotificationRecord
   ]);
 
   const details = record.status === 'SENT'
-    ? `WhatsApp ${record.alertType} sent (risk: ${record.riskLevel || 'n/a'}, breach prob: ${record.breachProbability !== undefined ? Math.round(record.breachProbability * 100) + '%' : 'n/a'})`
-    : `WhatsApp ${record.alertType} failed (risk: ${record.riskLevel || 'n/a'})`;
+    ? `Telegram ${record.alertType} sent (risk: ${record.riskLevel || 'n/a'}, breach prob: ${record.breachProbability !== undefined ? Math.round(record.breachProbability * 100) + '%' : 'n/a'})`
+    : `Telegram ${record.alertType} failed (risk: ${record.riskLevel || 'n/a'})`;
   await dbQuery(`
     INSERT INTO audit_logs (action, details)
     VALUES ('WHATSAPP_' || $1, $2)
   `, [record.status, details]);
 }
 
-export async function getRecentWhatsAppNotifications(limit = 20): Promise<WhatsAppNotificationRecord[]> {
+export async function getRecentTelegramNotifications(limit = 20): Promise<TelegramNotificationRecord[]> {
   if (activeEngine === 'supabase' && supabase) {
     try {
       const { data, error } = await supabase
-        .from('whatsapp_notifications')
+        .from('telegram_notifications')
         .select('alert_type, risk_level, breach_probability, message_id, sent_at, status, error_message')
         .order('id', { ascending: false })
         .limit(limit);
@@ -906,13 +906,13 @@ export async function getRecentWhatsAppNotifications(limit = 20): Promise<WhatsA
         }));
       }
     } catch (sbErr) {
-      console.warn('getRecentWhatsAppNotifications Supabase error:', sbErr);
+      console.warn('getRecentTelegramNotifications Supabase error:', sbErr);
     }
   }
 
   const res = await dbQuery(`
     SELECT alert_type, risk_level, breach_probability, message_id, sent_at, status, error_message
-    FROM whatsapp_notifications
+    FROM telegram_notifications
     ORDER BY id DESC
     LIMIT $1
   `, [limit]);

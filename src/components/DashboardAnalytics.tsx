@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { IndustryProfile, SimulationResult } from '../types';
 import { formatINR } from '../engine/calculator';
+import { getCurrencyInfo, getCurrencySymbol, formatCurrency } from '../utils/currency';
 import { WorkingCapitalPanel } from './WorkingCapitalPanel';
 import { BreachProbabilityGauge } from './BreachProbabilityGauge';
 import { HorizonCards } from './HorizonCards';
@@ -39,12 +40,10 @@ interface DashboardAnalyticsProps {
   simulationResult: SimulationResult;
   cashFloor: number;
   isLoading?: boolean;
-  activeSubTab?: string;
-  supplierDelayDays?: number;
   industryProfile?: IndustryProfile;
   businessName?: string;
-  currentTab?: DashboardTab;
-  onTabChange?: (tab: DashboardTab) => void;
+  currentTab?: string;
+  onTabChange?: (tab: string) => void;
   hasData?: boolean;
   onOpenConnector?: () => void;
   onOpenCsvUpload?: () => void;
@@ -53,11 +52,13 @@ interface DashboardAnalyticsProps {
 
 const CustomBarTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
+    const curr = getCurrencyInfo();
+    const multiplier = curr.code === 'INR' ? 100000 : 1000;
     return (
       <div className="bg-[#0A0A0A] border border-[#222222] rounded-xl p-3 text-xs font-mono shadow-xl text-[#EDEDED]">
         <p className="text-[#71717A] mb-1 font-medium">{label} 2026</p>
-        <p className="text-[#22C55E] font-medium">Inflow: ₹{payload[0]?.value}L</p>
-        <p className="text-[#EF4444] font-medium">Outflow: ₹{payload[1]?.value}L</p>
+        <p className="text-[#22C55E] font-medium">Inflow: {formatINR(Number(payload[0]?.value || 0) * multiplier)}</p>
+        <p className="text-[#EF4444] font-medium">Outflow: {formatINR(Number(payload[1]?.value || 0) * multiplier)}</p>
       </div>
     );
   }
@@ -66,10 +67,12 @@ const CustomBarTooltip = ({ active, payload, label }: any) => {
 
 const CustomPieTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
+    const curr = getCurrencyInfo();
+    const multiplier = curr.code === 'INR' ? 100000 : 1000;
     return (
       <div className="bg-[#0A0A0A] border border-[#222222] rounded-xl p-3 text-xs font-mono shadow-xl text-[#EDEDED]">
         <p className="font-medium">{payload[0].name}</p>
-        <p className="text-[#EDEDED] font-semibold">₹{payload[0].value.toFixed(1)}L</p>
+        <p className="text-[#EDEDED] font-semibold">{formatINR(Number(payload[0].value || 0) * multiplier)}</p>
       </div>
     );
   }
@@ -208,6 +211,11 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
       : simulationResult.breachProbability * 100;
   const breachProbability = Math.min(84, Math.max(0, Math.round(rawBreachProb)));
 
+  const curr = getCurrencyInfo();
+  const scaleDivider = curr.code === 'INR' ? 100000 : 1000;
+  const scaleLabel = curr.code === 'INR' ? '₹Lakhs' : `${curr.symbol}Thousands`;
+  const scaleUnit = curr.code === 'INR' ? 'L' : 'k';
+
   // Build dynamic monthly cashflow bars from simulation dailyPoints
   const monthlyDataMap = new Map<string, { month: string; inflow: number; outflow: number }>();
   
@@ -221,8 +229,8 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
       }
       if (monthlyDataMap.has(monthName)) {
         const item = monthlyDataMap.get(monthName)!;
-        item.inflow += (pt.inflow || 0) / 100000;
-        item.outflow += (pt.outflow || 0) / 100000;
+        item.inflow += (pt.inflow || 0) / scaleDivider;
+        item.outflow += (pt.outflow || 0) / scaleDivider;
       }
     });
   }
@@ -246,7 +254,8 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
     const colors = ['#6366F1', '#EF4444', '#F59E0B', '#10B981', '#8B5CF6', '#EC4899'];
     return {
       name: d.entity.split(' ')[0],
-      value: parseFloat((d.amount / 100000).toFixed(1)),
+      value: parseFloat((d.amount / scaleDivider).toFixed(1)),
+      amount: d.amount,
       color: colors[i % colors.length],
     };
   });
@@ -422,7 +431,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
                   <h3 className={`text-sm font-semibold ${isLight ? 'text-slate-900' : 'text-white'}`}>
                     Monthly Cash Flow Comparison
                   </h3>
-                  <p className={`text-xs mt-0.5 ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>Inflow vs Outflow (₹Lakhs)</p>
+                  <p className={`text-xs mt-0.5 ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>Inflow vs Outflow ({scaleLabel})</p>
                 </div>
                 <div className="flex items-center gap-3 text-xs font-mono">
                   <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#22C55E] inline-block" />Inflow</span>
@@ -447,7 +456,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
                       axisLine={false} tickLine={false}
                     />
                     <YAxis
-                      tickFormatter={(v) => `₹${v}L`}
+                      tickFormatter={(v) => `${curr.symbol}${v}${scaleUnit}`}
                       tick={{ fill: isLight ? '#64748B' : '#A1A1AA', fontSize: 10, fontFamily: 'monospace' }}
                       axisLine={false} tickLine={false}
                     />
@@ -728,7 +737,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
                       <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
                       <span>{item.name}</span>
                     </div>
-                    <span className="font-bold">₹{item.value}L</span>
+                    <span className="font-bold">{formatINR(item.amount)}</span>
                   </div>
                 ))}
               </div>

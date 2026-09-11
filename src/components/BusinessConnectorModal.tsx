@@ -341,7 +341,7 @@ export const BusinessConnectorModal: React.FC<BusinessConnectorModalProps> = ({
                     QuickBooks Online
                   </div>
                   <div className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-white/50'}`}>
-                    For QuickBooks accounts (Sandbox or Production)
+                    For QuickBooks accounts
                   </div>
                 </div>
               </div>
@@ -357,36 +357,7 @@ export const BusinessConnectorModal: React.FC<BusinessConnectorModalProps> = ({
             </div>
           </div>
 
-          {/* Sandbox */}
-          <div
-            onClick={handleSandboxConnect}
-            className={`rounded-xl p-4 flex items-center justify-between border transition-all duration-150 cursor-pointer hover:border-indigo-500/60 active:scale-[0.99] ${
-              isLight ? 'border-slate-200 bg-slate-50 hover:bg-indigo-50/50' : 'border-white/15 bg-white/5 hover:bg-white/10'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-500 font-black text-sm">
-                S
-              </div>
-              <div>
-                <div className={`text-xs font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                  Sandbox Demonstration Mode
-                </div>
-                <div className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-white/50'}`}>
-                  Reset Shakti Electronics dataset
-                </div>
-              </div>
-            </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleSandboxConnect();
-              }}
-              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold font-mono text-[10px] uppercase cursor-pointer transition-colors shadow-sm"
-            >
-              Select
-            </button>
-          </div>
+
         </div>
 
         {/* Status indicator */}
