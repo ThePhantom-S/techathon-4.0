@@ -10,6 +10,7 @@ import {
 import { Config, Transaction, Payable, Expense, InventoryItem, Supplier, Sale } from '../types';
 import { demoConfig, demoTransactions, demoPayables, demoExpenses, demoInventory, demoSuppliers, demoSales } from '../engine/sampleData';
 import { Skeleton, KPISkeleton, ChartSkeleton } from './ui/Skeleton';
+import { CustomDropdown, DropdownOption } from './CustomDropdown';
 
 interface MonteCarloChartProps {
   simulationResult?: any;
@@ -22,6 +23,33 @@ interface MonteCarloChartProps {
   suppliers?: Supplier[];
   historicalSales?: Sale[];
 }
+
+const runsOptions: DropdownOption[] = [
+  { value: '100', label: '100 Runs', sublabel: 'Quick' },
+  { value: '250', label: '250 Runs', sublabel: 'Standard' },
+  { value: '500', label: '500 Runs', sublabel: 'Recommended' },
+  { value: '1000', label: '1,000 Runs', sublabel: 'Deep Stress' },
+];
+
+const arVolOptions: DropdownOption[] = [
+  { value: '0.05', label: '±5%', sublabel: 'Low Drift' },
+  { value: '0.1', label: '±10%', sublabel: 'Baseline' },
+  { value: '0.2', label: '±20%', sublabel: 'High Volatility' },
+  { value: '0.3', label: '±30%', sublabel: 'Severe Shock' },
+];
+
+const payDelayOptions: DropdownOption[] = [
+  { value: '1', label: '±1 Day', sublabel: 'Tight' },
+  { value: '3', label: '±3 Days', sublabel: 'Standard' },
+  { value: '7', label: '±7 Days', sublabel: 'Delayed Terms' },
+  { value: '14', label: '±14 Days', sublabel: 'Chronic Delay' },
+];
+
+const demandVolOptions: DropdownOption[] = [
+  { value: '0.05', label: '±5%', sublabel: 'Stable Demand' },
+  { value: '0.15', label: '±15%', sublabel: 'Standard Cycle' },
+  { value: '0.3', label: '±30%', sublabel: 'High Seasonality' },
+];
 
 export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
   simulationResult,
@@ -443,103 +471,76 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs font-mono">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
               {/* Runs Selector */}
-              <div className={`p-3 rounded-xl border shadow-sm transition-all ${
+              <div className={`p-3 rounded-xl border shadow-sm transition-all flex flex-col justify-between ${
                 isLight ? 'bg-white border-slate-200 hover:border-indigo-300' : 'bg-zinc-900 border-zinc-800'
               }`}>
-                <label className={`text-[11px] font-semibold block mb-1 ${
+                <label className={`text-[11px] font-semibold font-mono block mb-1.5 ${
                   isLight ? 'text-slate-600' : 'text-zinc-400'
                 }`}>
                   Trial Runs (N)
                 </label>
-                <select
-                  value={runsCount}
-                  onChange={(e) => setRunsCount(Number(e.target.value))}
-                  className={`w-full bg-transparent font-bold font-mono outline-none cursor-pointer ${
-                    isLight ? 'text-slate-900' : 'text-zinc-100'
-                  }`}
-                >
-                  <option value="100" className={isLight ? 'bg-white text-slate-900' : 'bg-zinc-900 text-zinc-100'}>100 Runs (Quick)</option>
-                  <option value="250" className={isLight ? 'bg-white text-slate-900' : 'bg-zinc-900 text-zinc-100'}>250 Runs (Standard)</option>
-                  <option value="500" className={isLight ? 'bg-white text-slate-900' : 'bg-zinc-900 text-zinc-100'}>500 Runs (Recommended)</option>
-                  <option value="1000" className={isLight ? 'bg-white text-slate-900' : 'bg-zinc-900 text-zinc-100'}>1,000 Runs (Deep Stress)</option>
-                </select>
+                <CustomDropdown
+                  value={String(runsCount)}
+                  options={runsOptions}
+                  onChange={(val) => setRunsCount(Number(val))}
+                />
               </div>
 
               {/* AR Collection Drift */}
-              <div className={`p-3 rounded-xl border shadow-sm transition-all ${
+              <div className={`p-3 rounded-xl border shadow-sm transition-all flex flex-col justify-between ${
                 isLight ? 'bg-white border-slate-200 hover:border-indigo-300' : 'bg-zinc-900 border-zinc-800'
               }`}>
-                <label className={`text-[11px] font-semibold block mb-1 ${
+                <label className={`text-[11px] font-semibold font-mono block mb-1.5 ${
                   isLight ? 'text-slate-600' : 'text-zinc-400'
                 }`}>
                   AR Volatility (σ_p)
                 </label>
-                <select
-                  value={arVol}
-                  onChange={(e) => setArVol(Number(e.target.value))}
-                  className={`w-full bg-transparent font-bold font-mono outline-none cursor-pointer ${
-                    isLight ? 'text-slate-900' : 'text-zinc-100'
-                  }`}
-                >
-                  <option value="0.05" className={isLight ? 'bg-white text-slate-900' : 'bg-zinc-900 text-zinc-100'}>±5% (Low Drift)</option>
-                  <option value="0.10" className={isLight ? 'bg-white text-slate-900' : 'bg-zinc-900 text-zinc-100'}>±10% (Baseline)</option>
-                  <option value="0.20" className={isLight ? 'bg-white text-slate-900' : 'bg-zinc-900 text-zinc-100'}>±20% (High Volatility)</option>
-                  <option value="0.30" className={isLight ? 'bg-white text-slate-900' : 'bg-zinc-900 text-zinc-100'}>±30% (Severe Shock)</option>
-                </select>
+                <CustomDropdown
+                  value={String(arVol)}
+                  options={arVolOptions}
+                  onChange={(val) => setArVol(parseFloat(val))}
+                />
               </div>
 
               {/* Due Date Delay Drift */}
-              <div className={`p-3 rounded-xl border shadow-sm transition-all ${
+              <div className={`p-3 rounded-xl border shadow-sm transition-all flex flex-col justify-between ${
                 isLight ? 'bg-white border-slate-200 hover:border-indigo-300' : 'bg-zinc-900 border-zinc-800'
               }`}>
-                <label className={`text-[11px] font-semibold block mb-1 ${
+                <label className={`text-[11px] font-semibold font-mono block mb-1.5 ${
                   isLight ? 'text-slate-600' : 'text-zinc-400'
                 }`}>
                   Settlement Slippage
                 </label>
-                <select
-                  value={payDelay}
-                  onChange={(e) => setPayDelay(Number(e.target.value))}
-                  className={`w-full bg-transparent font-bold font-mono outline-none cursor-pointer ${
-                    isLight ? 'text-slate-900' : 'text-zinc-100'
-                  }`}
-                >
-                  <option value="1" className={isLight ? 'bg-white text-slate-900' : 'bg-zinc-900 text-zinc-100'}>±1 Day (Tight)</option>
-                  <option value="3" className={isLight ? 'bg-white text-slate-900' : 'bg-zinc-900 text-zinc-100'}>±3 Days (Standard)</option>
-                  <option value="7" className={isLight ? 'bg-white text-slate-900' : 'bg-zinc-900 text-zinc-100'}>±7 Days (Delayed Terms)</option>
-                  <option value="14" className={isLight ? 'bg-white text-slate-900' : 'bg-zinc-900 text-zinc-100'}>±14 Days (Chronic Delay)</option>
-                </select>
+                <CustomDropdown
+                  value={String(payDelay)}
+                  options={payDelayOptions}
+                  onChange={(val) => setPayDelay(Number(val))}
+                />
               </div>
 
               {/* Demand Volatility */}
-              <div className={`p-3 rounded-xl border shadow-sm transition-all ${
+              <div className={`p-3 rounded-xl border shadow-sm transition-all flex flex-col justify-between ${
                 isLight ? 'bg-white border-slate-200 hover:border-indigo-300' : 'bg-zinc-900 border-zinc-800'
               }`}>
-                <label className={`text-[11px] font-semibold block mb-1 ${
+                <label className={`text-[11px] font-semibold font-mono block mb-1.5 ${
                   isLight ? 'text-slate-600' : 'text-zinc-400'
                 }`}>
                   Demand Volatility (σ_q)
                 </label>
-                <select
-                  value={demandVol}
-                  onChange={(e) => setDemandVol(Number(e.target.value))}
-                  className={`w-full bg-transparent font-bold font-mono outline-none cursor-pointer ${
-                    isLight ? 'text-slate-900' : 'text-zinc-100'
-                  }`}
-                >
-                  <option value="0.05" className={isLight ? 'bg-white text-slate-900' : 'bg-zinc-900 text-zinc-100'}>±5% (Stable Demand)</option>
-                  <option value="0.15" className={isLight ? 'bg-white text-slate-900' : 'bg-zinc-900 text-zinc-100'}>±15% (Standard Cycle)</option>
-                  <option value="0.30" className={isLight ? 'bg-white text-slate-900' : 'bg-zinc-900 text-zinc-100'}>±30% (High Seasonality)</option>
-                </select>
+                <CustomDropdown
+                  value={String(demandVol)}
+                  options={demandVolOptions}
+                  onChange={(val) => setDemandVol(parseFloat(val))}
+                />
               </div>
 
               {/* Seed Mode */}
-              <div className={`p-3 rounded-xl border shadow-sm transition-all ${
+              <div className={`p-3 rounded-xl border shadow-sm transition-all flex flex-col justify-between ${
                 isLight ? 'bg-white border-slate-200 hover:border-indigo-300' : 'bg-zinc-900 border-zinc-800'
               }`}>
-                <label className={`text-[11px] font-semibold block mb-1 ${
+                <label className={`text-[11px] font-semibold font-mono block mb-1.5 ${
                   isLight ? 'text-slate-600' : 'text-zinc-400'
                 }`}>
                   Stochastic Seed
@@ -547,16 +548,36 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
                 <button
                   type="button"
                   onClick={() => setUseFixedSeed(!useFixedSeed)}
-                  className={`w-full flex items-center gap-1.5 font-bold font-mono cursor-pointer transition-colors ${
-                    useFixedSeed
-                      ? isLight ? 'text-amber-700' : 'text-amber-400'
-                      : isLight ? 'text-emerald-700' : 'text-emerald-400'
+                  className={`w-full flex items-center justify-between pl-3 pr-3 py-2.5 rounded-xl border text-xs font-sans outline-none transition-all cursor-pointer ${
+                    isLight
+                      ? useFixedSeed
+                        ? 'bg-amber-50/80 border-amber-300 text-amber-900 hover:bg-amber-100'
+                        : 'bg-emerald-50/80 border-emerald-300 text-emerald-900 hover:bg-emerald-100'
+                      : useFixedSeed
+                        ? 'bg-amber-950/30 border-amber-800 text-amber-300 hover:bg-amber-900/40'
+                        : 'bg-emerald-950/30 border-emerald-800 text-emerald-300 hover:bg-emerald-900/40'
                   }`}
                 >
-                  {useFixedSeed
-                    ? <><Lock className="w-3.5 h-3.5" /> Fixed (Seed 42)</>
-                    : <><Shuffle className="w-3.5 h-3.5" /> True Stochastic</>
-                  }
+                  <span className="flex items-center gap-2 font-medium truncate">
+                    {useFixedSeed ? (
+                      <>
+                        <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                        <span className="truncate">Fixed (Seed 42)</span>
+                      </>
+                    ) : (
+                      <>
+                        <Shuffle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        <span className="truncate">True Stochastic</span>
+                      </>
+                    )}
+                  </span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono shrink-0 ml-1 ${
+                    isLight 
+                      ? useFixedSeed ? 'bg-amber-200/70 text-amber-800' : 'bg-emerald-200/70 text-emerald-800'
+                      : useFixedSeed ? 'bg-amber-900/80 text-amber-300' : 'bg-emerald-900/80 text-emerald-300'
+                  }`}>
+                    {useFixedSeed ? 'Fixed' : 'Random'}
+                  </span>
                 </button>
               </div>
             </div>
