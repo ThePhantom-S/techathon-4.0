@@ -185,7 +185,7 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
   const se = mcResult.standardError;
   const ci95 = mcResult.confidenceInterval95;
 
-  // Compute 25 histogram bins matching the original layout
+  // Compute 25 histogram bins matching the distribution
   const bins = useMemo(() => {
     if (serverBins && serverBins.length > 0) {
       return serverBins;
@@ -205,7 +205,7 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
         const isBreached = bEnd < floor;
         const count = dist.filter((v) => v >= bStart && (i === binCount - 1 ? v <= bEnd : v < bEnd)).length;
         res.push({
-          range: `${(bStart / 100000).toFixed(1)}L`,
+          range: `${formatINR(bStart)} - ${formatINR(bEnd)}`,
           count,
           isBreached,
           start: bStart,
@@ -232,7 +232,7 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
       const count = Math.round(totalRuns * Math.exp(-distance * distance * 12) * (0.6 + Math.random() * 0.4));
       
       result.push({
-        range: `${(binStart / 100000).toFixed(1)}L`,
+        range: `${formatINR(binStart)} - ${formatINR(binEnd)}`,
         count: Math.max(1, count),
         isBreached,
         start: binStart,
@@ -245,11 +245,17 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
   const maxCount = useMemo(() => Math.max(...bins.map((b) => b.count), 1), [bins]);
   const chartHeight = 280;
 
-  // Find where safety floor falls in the bins
-  const floorBinIndex = bins.findIndex(b => {
-    const val = parseFloat(b.range) * 100000;
-    return val >= floor;
-  });
+  // Exact distribution bounds for positioning lines and markers
+  const rangeMin = bins.length > 0 ? bins[0].start : 0;
+  const rangeMax = bins.length > 0 ? bins[bins.length - 1].end : 1;
+  const rangeSpan = Math.max(1, rangeMax - rangeMin);
+
+  const getPositionPct = (val: number) => {
+    return Math.max(2, Math.min(98, ((val - rangeMin) / rangeSpan) * 100));
+  };
+
+  const floorPosition = ((floor - rangeMin) / rangeSpan) * 100;
+  const isFloorInView = floorPosition >= 0 && floorPosition <= 100;
 
   // Breach days bins for timing distribution
   const breachDaysBins = useMemo(() => {
@@ -713,16 +719,13 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
                         />
                       ))}
 
-                      {/* Safety Floor line */}
-                      {floorBinIndex >= 0 && (
+                      {/* Safety Floor vertical boundary line */}
+                      {isFloorInView && (
                         <div 
-                          className="absolute w-full border-t-2 border-red-500 border-dashed z-10 pointer-events-none"
-                          style={{ 
-                            left: 0,
-                            right: 0,
-                          }}
+                          className="absolute top-0 bottom-0 border-l-2 border-red-500 border-dashed z-20 pointer-events-none"
+                          style={{ left: `${floorPosition}%` }}
                         >
-                          <div className="absolute -top-5 right-0 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">
+                          <div className="absolute -top-7 -translate-x-1/2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow whitespace-nowrap">
                             SAFETY FLOOR: {formatINR(floor)}
                           </div>
                         </div>
@@ -763,13 +766,13 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
                               />
                               
                               {/* Tooltip on hover */}
-                              <div className={`absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-20 px-3 py-2 rounded-lg text-xs font-mono whitespace-nowrap shadow-xl border ${
+                              <div className={`absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-30 px-3 py-2 rounded-lg text-xs font-mono whitespace-nowrap shadow-xl border pointer-events-none ${
                                 isLight ? 'bg-slate-800 border-slate-700 text-white' : 'bg-zinc-800 border-zinc-700 text-white'
                               }`}>
-                                <div className="font-bold">{bin.count} simulations</div>
+                                <div className="font-bold">{bin.count} simulations ({((bin.count / totalRuns) * 100).toFixed(1)}%)</div>
                                 <div className="text-[10px] opacity-75">{bin.range}</div>
                                 <div className={`text-[10px] font-semibold ${bin.isBreached ? 'text-red-400' : 'text-emerald-400'}`}>
-                                  {bin.isBreached ? 'Breaches Safety Floor' : 'Above Safety Floor'}
+                                  {bin.isBreached ? '⚠ Breaches Safety Floor' : '✓ Above Safety Floor'}
                                 </div>
                               </div>
                             </div>
@@ -777,21 +780,19 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
                         })}
                       </div>
 
-                      {/* P10, P50, P90 markers - positioned based on actual values */}
+                      {/* P10, P50, P90 markers - positioned accurately based on numerical bounds */}
                       {[
                         { value: p10, label: 'P10', color: '#f97316', sublabel: 'Downside' },
                         { value: p50, label: 'P50', color: '#eab308', sublabel: 'Median' },
                         { value: p90, label: 'P90', color: '#22c55e', sublabel: 'Upside' },
                       ].map((marker, i) => {
-                        const rangeMin = parseFloat(bins[0].range) * 100000;
-                        const rangeMax = parseFloat(bins[bins.length - 1].range) * 100000;
-                        const position = ((marker.value - rangeMin) / (rangeMax - rangeMin)) * 100;
+                        const position = getPositionPct(marker.value);
                         
                         return (
                           <div
                             key={i}
-                            className="absolute top-0 bottom-0 flex flex-col items-center pointer-events-none"
-                            style={{ left: `${Math.max(5, Math.min(95, position))}%` }}
+                            className="absolute top-0 bottom-0 flex flex-col items-center pointer-events-none z-10"
+                            style={{ left: `${position}%` }}
                           >
                             {/* Dashed vertical line */}
                             <div 
@@ -801,23 +802,23 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
                             
                             {/* Marker dot */}
                             <div 
-                              className="absolute w-5 h-5 rounded-full shadow-xl"
+                              className="absolute w-4 h-4 rounded-full shadow-xl"
                               style={{ 
                                 backgroundColor: marker.color,
                                 top: '50%',
-                                transform: 'translateY(-50%)',
-                                border: '3px solid white',
+                                transform: 'translate(-50%, -50%)',
+                                border: '2px solid white',
                               }}
                             />
                             
                             {/* Label */}
-                            <div className="absolute -top-8 text-center bg-white/95 dark:bg-zinc-800/95 px-2 py-1 rounded shadow-lg border border-zinc-700/50">
-                              <div className="text-xs font-bold" style={{ color: marker.color }}>
+                            <div className="absolute -top-7 -translate-x-1/2 text-center bg-white/95 dark:bg-zinc-800/95 px-2 py-0.5 rounded shadow-lg border border-zinc-700/50 whitespace-nowrap">
+                              <span className="text-xs font-bold mr-1" style={{ color: marker.color }}>
                                 {marker.label}
-                              </div>
-                              <div className="text-[10px] font-medium" style={{ color: marker.color }}>
-                                {marker.sublabel}
-                              </div>
+                              </span>
+                              <span className="text-[10px] font-medium" style={{ color: marker.color }}>
+                                {marker.sublabel} ({formatINR(marker.value)})
+                              </span>
                             </div>
                           </div>
                         );
@@ -826,9 +827,9 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
 
                     {/* X-axis labels */}
                     <div className="ml-10 flex justify-between mt-2">
-                      {bins.filter((_, i) => i % Math.ceil(bins.length / 8) === 0 || i === bins.length - 1).map((bin, i) => (
+                      {bins.filter((_, i) => i % Math.ceil(bins.length / 6) === 0 || i === bins.length - 1).map((bin, i) => (
                         <span key={i} className={`text-[10px] font-mono ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
-                          {bin.range}
+                          {formatINR(bin.start)}
                         </span>
                       ))}
                     </div>
