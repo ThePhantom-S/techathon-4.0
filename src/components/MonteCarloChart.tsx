@@ -682,27 +682,28 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
               ) : (
                 <>
                   {/* Safety Floor Label - Top */}
-                  <div className="flex items-center justify-between mb-2">
+                  {/* Safety Floor Label - Top Header */}
+                  <div className="flex items-center justify-between mb-8 pb-2 border-b border-slate-100 dark:border-zinc-800/60">
                     <div className="flex items-center gap-2">
                       <BarChart3 className={`w-4 h-4 ${isLight ? 'text-slate-500' : 'text-zinc-400'}`} />
-                      <span className={`text-xs font-medium ${isLight ? 'text-slate-600' : 'text-zinc-400'}`}>
+                      <span className={`text-xs font-bold font-mono tracking-wide ${isLight ? 'text-slate-700' : 'text-zinc-300'}`}>
                         Minimum Cash Distribution
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-0.5 bg-red-500" />
-                      <span className="text-xs font-medium text-red-500">
+                      <span className="text-xs font-bold font-mono text-red-500">
                         Safety Floor: {formatINR(floor)}
                       </span>
                     </div>
                   </div>
 
-                  {/* Histogram Container */}
-                  <div className="relative" style={{ height: `${chartHeight + 60}px` }}>
-                    {/* Y-axis labels */}
-                    <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-right pr-2" style={{ width: '40px' }}>
+                  {/* Histogram Container with Headroom */}
+                  <div className="relative pt-6" style={{ height: `${chartHeight + 70}px` }}>
+                    {/* Y-axis labels - aligned strictly with chartHeight */}
+                    <div className="absolute left-0 top-6 flex flex-col justify-between text-right pr-2" style={{ width: '40px', height: `${chartHeight}px` }}>
                       {[maxCount, Math.round(maxCount * 0.75), Math.round(maxCount * 0.5), Math.round(maxCount * 0.25), 0].map((val, i) => (
-                        <span key={i} className={`text-[10px] font-mono ${isLight ? 'text-slate-400' : 'text-zinc-500'}`}>
+                        <span key={i} className={`text-[10px] font-mono leading-none ${isLight ? 'text-slate-400' : 'text-zinc-500'}`}>
                           {val}
                         </span>
                       ))}
@@ -725,7 +726,7 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
                           className="absolute top-0 bottom-0 border-l-2 border-red-500 border-dashed z-20 pointer-events-none"
                           style={{ left: `${floorPosition}%` }}
                         >
-                          <div className="absolute -top-7 -translate-x-1/2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow whitespace-nowrap">
+                          <div className="absolute -top-7 -translate-x-1/2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow whitespace-nowrap">
                             SAFETY FLOOR: {formatINR(floor)}
                           </div>
                         </div>
@@ -802,7 +803,7 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
                             
                             {/* Marker dot */}
                             <div 
-                              className="absolute w-4 h-4 rounded-full shadow-xl"
+                              className="absolute w-3.5 h-3.5 rounded-full shadow-lg"
                               style={{ 
                                 backgroundColor: marker.color,
                                 top: '50%',
@@ -811,9 +812,9 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
                               }}
                             />
                             
-                            {/* Label */}
-                            <div className="absolute -top-7 -translate-x-1/2 text-center bg-white/95 dark:bg-zinc-800/95 px-2 py-0.5 rounded shadow-lg border border-zinc-700/50 whitespace-nowrap">
-                              <span className="text-xs font-bold mr-1" style={{ color: marker.color }}>
+                            {/* Label Badge */}
+                            <div className="absolute -top-7 -translate-x-1/2 text-center bg-white/95 dark:bg-zinc-900/95 px-2 py-0.5 rounded-md shadow-md border border-zinc-300 dark:border-zinc-700 whitespace-nowrap backdrop-blur-sm">
+                              <span className="text-[11px] font-bold mr-1" style={{ color: marker.color }}>
                                 {marker.label}
                               </span>
                               <span className="text-[10px] font-medium" style={{ color: marker.color }}>
@@ -826,7 +827,7 @@ export const MonteCarloChart: React.FC<MonteCarloChartProps> = ({
                     </div>
 
                     {/* X-axis labels */}
-                    <div className="ml-10 flex justify-between mt-2">
+                    <div className="ml-10 flex justify-between mt-3">
                       {bins.filter((_, i) => i % Math.ceil(bins.length / 6) === 0 || i === bins.length - 1).map((bin, i) => (
                         <span key={i} className={`text-[10px] font-mono ${isLight ? 'text-slate-500' : 'text-zinc-400'}`}>
                           {formatINR(bin.start)}
